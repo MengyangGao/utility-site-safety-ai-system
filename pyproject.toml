@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "utility-safety-ai"
+version = "0.1.0"
+description = "Computer vision safety monitoring for utility and construction worksites."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Utility Site Safety AI Contributors"},
+]
+keywords = ["computer-vision", "safety", "ppe", "yolo", "utility", "construction"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "ultralytics>=8.3.0",
+    "lap>=0.5.12",
+    "opencv-python-headless>=4.8.0",
+    "numpy>=1.26.0,<2.0.0",
+    "Pillow>=10.0.0",
+    "streamlit>=1.38.0",
+    "pyyaml>=6.0.1",
+    "click>=8.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.6.0",
+]
+
+[project.scripts]
+utility-safety-ai = "utility_safety_ai.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/example/utility-site-safety-ai-system"
+Repository = "https://github.com/example/utility-site-safety-ai-system"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

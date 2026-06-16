@@ -1,0 +1,5 @@
+# Localized hazard zones for examples/sample_images/electrical_engineer_01.jpg
+# Image size: 1200 x 1800 pixels
+# This image is primarily used for PPE compliance demonstration.
+# No restricted zones are configured.
+zones: []

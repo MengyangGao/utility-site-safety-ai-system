@@ -1,0 +1,25 @@
+zones:
+- id: aerial_lift_platform
+  name: Aerial Lift / Live Work Zone
+  polygon:
+  - - 360
+    - 660
+  - - 864
+    - 660
+  - - 900
+    - 795
+  - - 324
+    - 795
+  risk_level: high
+- id: danger_tape_boundary
+  name: Danger Tape Boundary
+  polygon:
+  - - 0
+    - 760
+  - - 1200
+    - 760
+  - - 1200
+    - 800
+  - - 0
+    - 800
+  risk_level: medium

@@ -1,0 +1,9 @@
+zones:
+  - id: rooftop_edge_zone
+    name: Rooftop Edge / Fall Hazard
+    risk_level: high
+    polygon:
+      - [100, 280]
+      - [540, 280]
+      - [540, 620]
+      - [100, 620]

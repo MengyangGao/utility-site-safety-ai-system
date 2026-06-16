@@ -1,0 +1,19 @@
+# Localized hazard zones for examples/sample_images/solar_farm_01.jpg
+# Image size: 1200 x 800 pixels
+zones:
+  - id: live_dc_bus_zone
+    name: Live DC Bus / Switchgear Area
+    risk_level: high
+    polygon:
+      - [700, 650]
+      - [1100, 650]
+      - [1120, 800]
+      - [720, 800]
+  - id: pv_array_edge
+    name: PV Array Edge / Slip Hazard
+    risk_level: medium
+    polygon:
+      - [0, 620]
+      - [500, 620]
+      - [620, 800]
+      - [0, 800]
