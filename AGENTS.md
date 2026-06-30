@@ -1,7 +1,7 @@
 AGENTS.md — Utility Site Safety AI System
 
 > This file describes the implementation specification. The repository has been
-> implemented as a v0.2 portfolio demo with realistic CC0 construction/utility
+> implemented as a v0.4 industrial-deliverable prototype with realistic CC0 construction/utility
 > images, localized hazard zones, event aggregation, and optional custom PPE
 > model training.
 
@@ -269,8 +269,8 @@ utility-safety-ai
 
 Minimum CLI commands:
 
-utility-safety-ai infer-image --source path/to/image.jpg --model path/to/model.pt --zones configs/zones.example.yaml --output outputs/
-utility-safety-ai infer-video --source path/to/video.mp4 --model path/to/model.pt --zones configs/zones.example.yaml --output outputs/
+utility-safety-ai infer-image --source path/to/image.jpg --model path/to/model.pt --zones examples/zones.example.yaml --output outputs/
+utility-safety-ai infer-video --source path/to/video.mp4 --model path/to/model.pt --zones examples/zones.example.yaml --output outputs/
 utility-safety-ai train --data path/to/data.yaml --model yolo11n.pt --epochs 30
 utility-safety-ai export-report --events outputs/events/events.jsonl --format csv
 
@@ -291,7 +291,7 @@ utility-safety-ai/
   requirements.txt
   pyproject.toml
   app.py
-  configs/
+  examples/
     zones.example.yaml
     rules.example.yaml
     model.example.yaml
@@ -690,7 +690,7 @@ Also run at least one demo command, for example:
 
 utility-safety-ai infer-image \
   --source examples/sample_images/demo.jpg \
-  --zones configs/zones.example.yaml \
+  --zones examples/zones.example.yaml \
   --output outputs/demo
 
 If possible, also run:

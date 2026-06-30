@@ -83,10 +83,13 @@ Image / Video / Camera
 
 Requires [Miniconda](https://docs.conda.io/en/latest/miniconda.html) (or Anaconda).
 
+> **Python version**: Tested on Python 3.10–3.12. Python 3.13 is not yet supported
+> because numpy 1.x does not provide wheels for it.
+
 ```bash
 conda env create -f environment.yml
 conda activate utility-safety-ai
-pip install -e .
+pip install -e ".[dev]"
 ```
 
 The default inference model is auto-discovered in this order:
@@ -210,6 +213,10 @@ utility-safety-ai export-report \
 ## Training a Custom PPE Model
 
 The system supports training on the Ultralytics **Construction-PPE** dataset so it can detect positive PPE classes (`helmet`, `vest`, `gloves`, `boots`, `goggles`) and missing-PPE classes (`no_helmet`, `no_goggle`, `no_gloves`, `no_boots`).
+
+> **Dataset note**: `construction-ppe.yaml` is an Ultralytics dataset alias. If it is not
+> auto-downloaded, download the Construction-PPE dataset and point `--data` to its
+> `data.yaml`, or run `python scripts/validate_ppe_model.py --data <path>`.
 
 ```bash
 utility-safety-ai train \

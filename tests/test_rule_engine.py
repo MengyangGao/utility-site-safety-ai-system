@@ -60,8 +60,9 @@ def test_multiple_ppe_violations_escalate_to_high():
     engine = RuleEngine(zones=[])
     events = engine.evaluate(
         [
-            _det("no_helmet", (10, 10, 30, 30), track_id=1),
-            _det("no_vest", (10, 10, 30, 30), track_id=1),
+            _det("person", (0, 0, 50, 50), track_id=1),
+            _det("no_helmet", (15, 5, 35, 25), track_id=2),
+            _det("no_vest", (10, 20, 40, 45), track_id=3),
         ],
         source_type="image",
         source_path="test.jpg",

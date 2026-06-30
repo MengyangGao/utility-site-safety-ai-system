@@ -36,20 +36,23 @@ class SimpleTracker:
         self._next_id = 1
 
     def update(self, detections: list[Detection]) -> list[Detection]:
-        """Assign/update track IDs for the supplied detections."""
+        """Assign/update track IDs for person detections only.
+
+        Non-person detections (PPE items, faces, etc.) are returned unchanged so
+        they do not inherit a person's track ID and pollute compliance reports.
+        """
+        person_dets = [d for d in detections if d.class_name == "person"]
+        non_person_dets = [d for d in detections if d.class_name != "person"]
+
         new_tracks: dict[int, tuple[tuple[float, float, float, float], int]] = {}
-        matched_detections: list[Detection] = []
-        unmatched_detections = list(detections)
+        person_to_tid: dict[int, int] = {}
+        used: set[int] = set()
 
-        # Greedy best-IoU matching between current tracks and new detections.
-        track_ids = list(self._tracks.keys())
-        used = set()
-
-        for tid in track_ids:
-            last_bbox, age = self._tracks[tid]
+        # Greedy best-IoU matching between current tracks and new person detections.
+        for tid, (last_bbox, age) in self._tracks.items():
             best_iou = self.iou_threshold
             best_idx = -1
-            for idx, det in enumerate(unmatched_detections):
+            for idx, det in enumerate(person_dets):
                 if idx in used:
                     continue
                 score = _iou(last_bbox, det.bbox)
@@ -58,44 +61,39 @@ class SimpleTracker:
                     best_idx = idx
 
             if best_idx >= 0:
-                det = unmatched_detections[best_idx]
+                det = person_dets[best_idx]
                 new_tracks[tid] = (det.bbox, 0)
-                matched_detections.append(
-                    Detection(
-                        class_id=det.class_id,
-                        class_name=det.class_name,
-                        confidence=det.confidence,
-                        bbox=det.bbox,
-                        track_id=tid,
-                    )
-                )
+                person_to_tid[best_idx] = tid
                 used.add(best_idx)
+            elif age + 1 < self.max_age:
+                # Keep the old track alive briefly for missed detections.
+                new_tracks[tid] = (last_bbox, age + 1)
 
-        # Create new tracks for unmatched detections.
-        for idx, det in enumerate(unmatched_detections):
+        # Create new tracks for unmatched person detections.
+        for idx, det in enumerate(person_dets):
             if idx in used:
                 continue
             tid = self._next_id
             self._next_id += 1
             new_tracks[tid] = (det.bbox, 0)
+            person_to_tid[idx] = tid
+            used.add(idx)
+
+        self._tracks = new_tracks
+
+        # Rebuild the detection list with stable track IDs for persons.
+        matched_detections: list[Detection] = []
+        for idx, det in enumerate(person_dets):
             matched_detections.append(
                 Detection(
                     class_id=det.class_id,
                     class_name=det.class_name,
                     confidence=det.confidence,
                     bbox=det.bbox,
-                    track_id=tid,
+                    track_id=person_to_tid.get(idx),
                 )
             )
-
-        # Keep old tracks alive briefly to handle missed detections.
-        for tid, (bbox, age) in self._tracks.items():
-            if tid in new_tracks:
-                continue
-            if age + 1 < self.max_age:
-                new_tracks[tid] = (bbox, age + 1)
-
-        self._tracks = new_tracks
+        matched_detections.extend(non_person_dets)
         return matched_detections
 
     def reset(self) -> None:

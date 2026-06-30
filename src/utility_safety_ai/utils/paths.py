@@ -20,7 +20,11 @@ class OutputPaths:
             directory.mkdir(parents=True, exist_ok=True)
 
     def reset_logs(self) -> None:
-        """Remove previous event, detection, and compliance logs so each run starts clean."""
+        """Remove previous logs and snapshots so each run starts clean.
+
+        Annotated images and videos are overwritten by name, but event snapshots
+        use unique IDs and would otherwise accumulate across runs.
+        """
         for name in (
             "events.jsonl",
             "events.csv",
@@ -31,4 +35,8 @@ class OutputPaths:
         ):
             path = self.events / name
             if path.exists():
+                path.unlink()
+
+        for path in self.snapshots.iterdir():
+            if path.is_file():
                 path.unlink()

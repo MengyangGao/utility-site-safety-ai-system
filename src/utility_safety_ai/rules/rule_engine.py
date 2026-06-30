@@ -181,16 +181,6 @@ class RuleEngine:
             if self._accept(event, time_seconds):
                 events.append(event)
 
-        # Escalate unassociated negative PPE detections when multiple violations
-        # appear together.
-        events = [
-            self._escalate(e, risk.HIGH)
-            if e.metadata.get("associated") is False
-            and len([x for x in events if x.metadata.get("associated") is False]) >= 2
-            else e
-            for e in events
-        ]
-
         return events
 
     def _build_zone_events(
@@ -283,19 +273,20 @@ class RuleEngine:
 
         Events are keyed by (track_id, event_type, zone_id). For video/camera,
         repeated events are suppressed until the cooldown window expires. For
-        images with no time, the first event of its kind is accepted.
+        single-frame images there is no temporal duplication, so every distinct
+        event is accepted.
         """
         key = (event.person_track_id, event.event_type, event.zone_id)
         last = self._last_emitted.get(key)
 
-        if last is None:
-            if time_seconds is not None:
-                self._last_emitted[key] = time_seconds
+        if time_seconds is None:
+            # Single image: do not suppress events just because they share a
+            # kind; track IDs are already stable per image.
             return True
 
-        if time_seconds is None:
-            # No temporal context (image); suppress exact duplicate kinds.
-            return False
+        if last is None:
+            self._last_emitted[key] = time_seconds
+            return True
 
         if time_seconds - last >= self.cooldown_seconds:
             self._last_emitted[key] = time_seconds

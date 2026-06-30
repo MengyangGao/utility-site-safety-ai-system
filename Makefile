@@ -2,7 +2,7 @@
 
 install:
 	conda env create -f environment.yml || true
-	conda run -n utility-safety-ai pip install -e .
+	conda run -n utility-safety-ai pip install -e ".[dev]"
 
 test:
 	pytest -q

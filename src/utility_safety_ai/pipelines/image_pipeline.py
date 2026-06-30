@@ -60,31 +60,37 @@ def run_image_pipeline(
     tracker = SimpleTracker(iou_threshold=0.1)
     detections = tracker.update(detections)
 
-    if blur_faces_enabled:
-        image = blur_faces(image, detections, enabled=True)
+    # Apply privacy blur on a copy so the original frame stays available for
+    # internal debugging / audit if ever needed.
+    display_image = blur_faces(image.copy(), detections, enabled=blur_faces_enabled)
 
     engine = rule_engine or RuleEngine(zones=zones)
+    shared_metadata = {
+        "confidence_threshold": detector.conf,
+        "privacy_blur_enabled": blur_faces_enabled,
+    }
     events = engine.evaluate(
         detections,
         source_type="image",
         source_path=str(source_path),
-        metadata={"confidence_threshold": detector.conf},
+        metadata=shared_metadata,
     )
 
-    annotated = annotate_image(image, zones, detections, events)
+    annotated = annotate_image(display_image, zones, detections, events)
     out_image_path = output_paths.images / source_path.name
     cv2.imwrite(str(out_image_path), annotated)
     logger.info("Saved annotated image to %s", out_image_path)
 
     event_logger = EventLogger(output_paths.events)
     compliance_reporter = ComplianceReporter(output_paths.events)
+    detection_logger = DetectionLogger(output_paths.events)
 
     compliance_records, _ = associate_ppe_to_persons(detections)
     compliance_reporter.write(compliance_records)
 
     updated_events: list[SafetyEvent] = []
     for event in events:
-        snapshot_path = _save_snapshot(image, event, output_paths.snapshots)
+        snapshot_path = _save_snapshot(display_image, event, output_paths.snapshots)
         if snapshot_path:
             event = SafetyEvent(
                 event_id=event.event_id,
@@ -108,10 +114,11 @@ def run_image_pipeline(
     event_logger.log_all(updated_events)
     write_summary(updated_events, output_paths.events)
 
-    DetectionLogger(output_paths.events).log_all(
+    detection_logger.log_all(
         detections,
         source_type="image",
         source_path=str(source_path),
+        metadata=shared_metadata,
     )
 
     logger.info(

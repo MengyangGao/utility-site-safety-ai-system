@@ -80,6 +80,7 @@ def run_camera_pipeline(
 
     engine = rule_engine or RuleEngine(zones=zones)
     event_logger = EventLogger(output_paths.events)
+    detection_logger = DetectionLogger(output_paths.events)
     compliance_reporter = ComplianceReporter(output_paths.events)
     fallback_tracker = SimpleTracker()
     all_events: list[SafetyEvent] = []
@@ -111,8 +112,16 @@ def run_camera_pipeline(
             if any(d.track_id is None for d in detections):
                 detections = fallback_tracker.update(detections)
 
-            if blur_faces_enabled:
-                frame = blur_faces(frame, detections, enabled=True)
+            # Apply privacy blur on a copy so the original frame is still available
+            # for internal debugging / audit if ever needed.
+            display_frame = blur_faces(
+                frame.copy(), detections, enabled=blur_faces_enabled
+            )
+            shared_metadata = {
+                "confidence_threshold": detector.conf,
+                "fps": fps,
+                "privacy_blur_enabled": blur_faces_enabled,
+            }
 
             events = engine.evaluate(
                 detections,
@@ -120,15 +129,17 @@ def run_camera_pipeline(
                 source_path=str(source),
                 frame_index=frame_index,
                 time_seconds=time_seconds,
-                metadata={"confidence_threshold": detector.conf, "fps": fps},
+                metadata=shared_metadata,
             )
 
-            annotated = annotate_image(frame, zones, detections, events)
+            annotated = annotate_image(display_frame, zones, detections, events)
             writer.write(annotated)
 
             updated_frame_events: list[SafetyEvent] = []
             for event in events:
-                snapshot_path = _save_snapshot(frame, event, output_paths.snapshots)
+                snapshot_path = _save_snapshot(
+                    display_frame, event, output_paths.snapshots
+                )
                 if snapshot_path:
                     event = SafetyEvent(
                         event_id=event.event_id,
@@ -158,12 +169,13 @@ def run_camera_pipeline(
 
             all_events.extend(updated_frame_events)
             event_logger.log_all(updated_frame_events)
-            DetectionLogger(output_paths.events).log_all(
+            detection_logger.log_all(
                 detections,
                 source_type="camera",
                 source_path=str(source),
                 frame_index=frame_index,
                 time_seconds=time_seconds,
+                metadata=shared_metadata,
             )
             total_detections += len(detections)
 

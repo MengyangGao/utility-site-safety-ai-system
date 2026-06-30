@@ -7,7 +7,7 @@ name = "utility-safety-ai"
 version = "0.1.0"
 description = "Computer vision safety monitoring for utility and construction worksites."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 license = {text = "MIT"}
 authors = [
     {name = "Utility Site Safety AI Contributors"},
@@ -20,6 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
@@ -31,6 +32,7 @@ dependencies = [
     "streamlit>=1.38.0",
     "pyyaml>=6.0.1",
     "click>=8.1.0",
+    "pandas>=2.0.0",
 ]
 
 [project.optional-dependencies]

@@ -44,6 +44,7 @@ class DetectionLogger:
         source_path: str,
         frame_index: int | None = None,
         time_seconds: float | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """Write a single detection to both JSONL and CSV."""
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -54,6 +55,7 @@ class DetectionLogger:
             "frame_index": frame_index,
             "time_seconds": time_seconds,
             **asdict(detection),
+            **(metadata or {}),
         }
         self._append_jsonl(record)
         self._append_csv(record)
@@ -65,9 +67,10 @@ class DetectionLogger:
         source_path: str,
         frame_index: int | None = None,
         time_seconds: float | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         for detection in detections:
-            self.log(detection, source_type, source_path, frame_index, time_seconds)
+            self.log(detection, source_type, source_path, frame_index, time_seconds, metadata)
 
     def _append_jsonl(self, record: dict[str, Any]) -> None:
         try:

@@ -1,3 +1,6 @@
+# Python 3.10–3.12 are supported and tested. Python 3.13 is not yet supported
+# because numpy 1.x does not provide wheels for it.
+
 # Core inference and image processing
 ultralytics>=8.3.0
 lap>=0.5.12

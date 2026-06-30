@@ -112,12 +112,14 @@ def _draw_text(
     if _needs_pil(text):
         font = _load_pil_font(_pil_font_size(font_scale))
         if font is not None:
-            pil_image = Image.fromarray(image)
+            # OpenCV stores images as BGR, but PIL expects RGB.
+            rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            pil_image = Image.fromarray(rgb)
             draw = ImageDraw.Draw(pil_image)
             _, top, _, bottom = font.getbbox(text)
             # y is treated as the text baseline; draw so the baseline aligns.
             draw.text((x, y - bottom), text, font=font, fill=_bgr_to_rgb(color))
-            image[:] = np.array(pil_image)
+            image[:] = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
             return
     cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, 1)
 

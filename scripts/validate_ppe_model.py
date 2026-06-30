@@ -12,20 +12,36 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def validate(model_path: str | Path, output_dir: str | Path = "outputs/validation") -> dict:
-    """Run COCO-style validation on the Ultralytics Construction-PPE dataset.
+def validate(
+    model_path: str | Path,
+    output_dir: str | Path = "outputs/validation",
+    data: str = "construction-ppe.yaml",
+) -> dict:
+    """Run COCO-style validation on a PPE dataset.
 
     Produces:
       - metrics.json with per-class precision/recall/mAP50/mAP50-95
       - confusion_matrix.png and confusion_matrix_normalized.png
       - PR_curve.png and F1_curve.png
       - A gallery of validation predictions (best and worst per class)
+
+    Args:
+        model_path: Path to the trained model weights.
+        output_dir: Directory where validation artifacts are saved.
+        data: Ultralytics dataset YAML or dataset name.
     """
     from ultralytics import YOLO
 
+    model_path = Path(model_path)
+    if not model_path.exists():
+        raise FileNotFoundError(
+            f"Model not found: {model_path}. "
+            "Train a model first or place weights at models/ppe_yolo11n.pt"
+        )
+
     model = YOLO(str(model_path))
     metrics = model.val(
-        data="construction-ppe.yaml",
+        data=data,
         verbose=False,
         plots=True,
         save=True,
@@ -109,8 +125,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Validate a PPE YOLO model.")
     parser.add_argument("--model", default="models/ppe_yolo11n.pt", help="Path to model weights.")
     parser.add_argument("--output", default="outputs/validation", help="Directory for validation artifacts.")
+    parser.add_argument(
+        "--data",
+        default="construction-ppe.yaml",
+        help="Ultralytics dataset YAML or dataset name (default: construction-ppe.yaml).",
+    )
     args = parser.parse_args()
-    validate(args.model, args.output)
+    validate(args.model, args.output, data=args.data)
 
 
 if __name__ == "__main__":

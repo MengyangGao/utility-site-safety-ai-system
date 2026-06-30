@@ -18,6 +18,7 @@ class ComplianceReporter:
         self.jsonl_path = self.output_dir / "compliance.jsonl"
         self.csv_path = self.output_dir / "compliance.csv"
         self._csv_header_written = self.csv_path.exists() and self.csv_path.stat().st_size > 0
+        self._last_state: dict[int, dict[str, str]] = {}
 
     def write(
         self,
@@ -26,6 +27,9 @@ class ComplianceReporter:
         time_seconds: float | None = None,
     ) -> tuple[Path, Path]:
         """Append compliance records to JSONL and CSV.
+
+        Only rows whose PPE status has changed since the last write are persisted,
+        which keeps compliance logs from growing by one entry per person per frame.
 
         Args:
             records: Per-person compliance records for a single frame.
@@ -36,9 +40,12 @@ class ComplianceReporter:
             Paths to the written JSONL and CSV files.
         """
         rows = [self._to_row(r, frame_index, time_seconds) for r in records]
+        changed_rows = [row for row in rows if self._record_changed(row)]
+        if not changed_rows:
+            return self.jsonl_path, self.csv_path
 
         with self.jsonl_path.open("a", encoding="utf-8") as f:
-            for row in rows:
+            for row in changed_rows:
                 f.write(json.dumps(row, default=str) + "\n")
 
         with self.csv_path.open("a", encoding="utf-8", newline="") as f:
@@ -46,10 +53,29 @@ class ComplianceReporter:
             if not self._csv_header_written:
                 writer.writeheader()
                 self._csv_header_written = True
-            for row in rows:
+            for row in changed_rows:
                 writer.writerow(row)
 
         return self.jsonl_path, self.csv_path
+
+    def _record_changed(self, row: dict[str, str]) -> bool:
+        """Return True if the PPE state for this person differs from the last write."""
+        track_id = int(row["person_track_id"])
+        state = {
+            "helmet": row.get("helmet", "unknown"),
+            "vest": row.get("vest", "unknown"),
+            "gloves": row.get("gloves", "unknown"),
+            "boots": row.get("boots", "unknown"),
+            "goggles": row.get("goggles", "unknown"),
+            "violations": row.get("violations", ""),
+            "positive_classes": row.get("positive_classes", ""),
+            "negative_classes": row.get("negative_classes", ""),
+        }
+        last = self._last_state.get(track_id)
+        if last == state:
+            return False
+        self._last_state[track_id] = state
+        return True
 
     @staticmethod
     def _to_row(

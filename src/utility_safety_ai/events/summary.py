@@ -24,7 +24,7 @@ def aggregate_events(events: list[SafetyEvent]) -> dict[str, Any]:
     type_counts = Counter(e.event_type for e in events)
     zone_intrusions = sum(1 for e in events if e.event_type == "zone_intrusion")
     ppe_violations = sum(
-        1 for e in events if e.event_type.startswith("missing_") or e.event_type == "multiple_ppe_violations"
+        1 for e in events if e.event_type.startswith("missing_")
     )
     unique_persons = {e.person_track_id for e in events if e.person_track_id is not None}
 
