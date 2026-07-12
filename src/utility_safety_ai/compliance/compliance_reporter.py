@@ -70,6 +70,7 @@ class ComplianceReporter:
             "violations": row.get("violations", ""),
             "positive_classes": row.get("positive_classes", ""),
             "negative_classes": row.get("negative_classes", ""),
+            "conflicting_classes": row.get("conflicting_classes", ""),
         }
         last = self._last_state.get(track_id)
         if last == state:
@@ -97,6 +98,9 @@ class ComplianceReporter:
             "violations": ";".join(record.violations()),
             "positive_classes": ",".join(d.class_name for d in record.positive_detections),
             "negative_classes": ",".join(d.class_name for d in record.negative_detections),
+            "conflicting_classes": ",".join(
+                d.class_name for d in record.conflicting_detections
+            ),
         }
 
     @staticmethod
@@ -114,4 +118,5 @@ class ComplianceReporter:
             "violations",
             "positive_classes",
             "negative_classes",
+            "conflicting_classes",
         ]

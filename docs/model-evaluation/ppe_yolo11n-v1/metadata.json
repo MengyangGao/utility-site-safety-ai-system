@@ -1,0 +1,91 @@
+{
+  "evaluation_id": "ppe_yolo11n-v1-2026-07-13",
+  "checkpoint": {
+    "local_path": "models/ppe_yolo11n.pt",
+    "size_bytes": 5473498,
+    "sha256": "b05d39dba9d9a5a19855b9cc7dc4c613e979a64a280929e593522685c19cefff",
+    "base_checkpoint": "models/yolo11n.pt",
+    "base_checkpoint_sha256": "0ebbc80d4a7680d14987a577cd21342b65ecfd94632bd9a8da63ae6417644ee1",
+    "upstream": "https://docs.ultralytics.com/models/yolo11/",
+    "license": "Ultralytics AGPL-3.0 or separate Enterprise terms; review before redistribution"
+  },
+  "dataset": {
+    "name": "Ultralytics Construction-PPE",
+    "source": "https://docs.ultralytics.com/datasets/detect/construction-ppe/",
+    "license": "AGPL-3.0",
+    "config": "datasets/data.yaml",
+    "config_sha256": "bfbc2471c75a82beaca2c255b7814d7eaf3087f191f1c7e43c8d8e90a27e961a",
+    "download_archive_sha256": "bef8dcb599aa4e9d9f5e602cb6fa7143d3c84d7f6a0ff40463d7f2a4c2632ccc",
+    "split_images": {
+      "train": 1132,
+      "val": 143,
+      "test": 141
+    },
+    "evaluation_split": "val",
+    "evaluation_images": 143,
+    "evaluation_instances": 1172,
+    "class_map": {
+      "0": "helmet",
+      "1": "gloves",
+      "2": "vest",
+      "3": "boots",
+      "4": "goggles",
+      "5": "none",
+      "6": "Person",
+      "7": "no_helmet",
+      "8": "no_goggle",
+      "9": "no_gloves",
+      "10": "no_boots"
+    },
+    "validation_instances_by_class": {
+      "helmet": 201,
+      "gloves": 136,
+      "vest": 171,
+      "boots": 151,
+      "goggles": 47,
+      "none": 81,
+      "Person": 239,
+      "no_helmet": 45,
+      "no_goggle": 41,
+      "no_gloves": 56,
+      "no_boots": 4
+    }
+  },
+  "training": {
+    "epochs": 30,
+    "image_size": 640,
+    "batch": 16,
+    "seed": 42,
+    "deterministic": false,
+    "device": "Apple MPS",
+    "duration_hours": 0.287,
+    "args_artifact": "training-args.yaml",
+    "curve_artifact": "training-results.csv"
+  },
+  "validation": {
+    "command": "python scripts/validate_ppe_model.py --model models/ppe_yolo11n.pt --data datasets/data.yaml --output outputs/validation/ppe_yolo11n_v1",
+    "device": "CPU",
+    "metrics_artifact": "metrics.json",
+    "confusion_matrix_artifact": "confusion-matrix-normalized.png",
+    "pr_curve_artifact": "pr-curve.png",
+    "f1_curve_artifact": "f1-curve.png",
+    "prediction_sample_artifact": "validation-predictions.jpg"
+  },
+  "benchmark": {
+    "artifact": "benchmark.json",
+    "input": "deterministic 640x640 synthetic RGB noise, seed 42",
+    "warmup_iterations": 5,
+    "timed_iterations": 30,
+    "scope": "detector.predict only; not end-to-end pipeline throughput"
+  },
+  "environment": {
+    "date": "2026-07-13",
+    "platform": "macOS-15.6.1-arm64-arm-64bit",
+    "processor": "Apple M4 Pro",
+    "python": "3.11.15",
+    "torch": "2.13.0",
+    "ultralytics": "8.4.92",
+    "opencv": "4.11.0",
+    "streamlit": "1.59.1"
+  }
+}

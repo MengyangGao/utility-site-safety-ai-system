@@ -1,90 +1,99 @@
-# 🦺 Utility Site Safety AI System
+# Utility Site Safety AI
 
-An open-source computer vision prototype for safety monitoring in utility, construction, substation, electrical maintenance, and infrastructure worksite scenarios.
+**Auditable computer vision for utility and construction worksite safety — not another helmet-detection toy.**
 
-> ⚠️ **Disclaimer**: This project is an **educational and engineering demonstration prototype**. It is **not certified** for real safety-critical deployment. It is intended as decision-support software that requires human review.
+Utility Site Safety AI turns image, video, webcam, and RTSP inputs into localized hazard findings, privacy-protected evidence, immutable run artifacts, and reviewable CSV/JSONL reports. It is designed as a serious engineering portfolio and proof-of-concept for substations, electrical maintenance, renewable-energy sites, EV infrastructure, and civil works.
 
----
+> [!IMPORTANT]
+> This is an educational and engineering demonstration prototype. It is not certified for safety-critical deployment, does not guarantee worker safety, and does not replace a safety officer. Human review is required; false positives and false negatives are expected.
 
-## What's new in v0.4 (industrial-deliverable prototype)
+![PPE-enabled video inference with normalized work zones, temporary tracking, privacy blur, and active event summary](docs/assets/annotated-video-frame-2.jpg)
 
-- **Person-level PPE compliance reports** — geometry-based association of PPE items to each detected worker produces per-person status: `helmet yes`, `vest yes`, `gloves no`, etc.
-- **Live camera / RTSP / webcam inference** — `infer-camera` CLI command and Streamlit tab for continuous input sources.
-- **Comprehensive validation artifacts** — per-class precision/recall/mAP50/mAP50-95, confusion matrices, PR/F1 curves, precision/recall curves, and validation-batch prediction galleries.
-- **Performance benchmarking** — `scripts/benchmark.py` measures FPS on CPU and available accelerators (MPS/CUDA).
-- **Model export helper** — `scripts/export_model.py` exports trained weights to ONNX/TorchScript/OpenVINO/TensorRT formats.
-- **Cleaner project workspace** — obsolete outputs, cached files, and dead configs removed; repo reorganized for maintainability.
-- **Honest negative-PPE handling** — events are generated only from explicit `no_*` detections or geometry-based person-PPE association; the system never fakes a violation from a missing positive detection.
+*Real Pexels construction video, local PPE checkpoint, privacy blur enabled. The retained acceptance run processed 120 frames, wrote 468 detections, emitted five cooldown-filtered zone events, and saved five evidence snapshots.*
 
----
+| Clean-clone person + zone mode | PPE-enabled image mode |
+|---|---|
+| ![General YOLO person and zone result](docs/assets/annotated-zone.jpg) | ![PPE checkpoint result](docs/assets/annotated-ppe-zone.jpg) |
 
-## Use Cases
+Release-media provenance, run IDs, model hashes, and license boundaries are recorded in [`docs/assets/`](docs/assets/README.md).
 
-- Substation maintenance monitoring
-- Utility construction site safety
-- Electrical cabinet / switchgear work observation
-- Solar / wind farm construction and O&M
-- EV charging facility construction
-- General infrastructure worksite safety
+## Why this project is different
 
----
+- **Honest model capability:** a clean clone runs person + restricted-zone monitoring with COCO-pretrained YOLO11n. PPE claims activate only when the selected model actually exposes PPE classes.
+- **Person-level decisions:** positive and negative PPE boxes must associate to a detected person, contradictory evidence is resolved deterministically, and unobserved PPE remains `unknown` rather than being called a violation.
+- **Operational events, not frame spam:** active findings are separated from cooldown-filtered events; every emitted event can carry a privacy-protected snapshot.
+- **Audit-first outputs:** each run has input/model/output hashes, runtime and Git provenance, logs, summaries, detections, compliance state, media artifacts, and a collision-resistant run ID.
+- **Practical interfaces:** CLI, Streamlit, image/video pipelines, webcam/RTSP ingestion, normalized zone editing, report downloads, model training, validation, benchmarking, and export.
+
+## Two honest operating modes
+
+| Mode | Model | What works | What does not become true automatically |
+|---|---|---|---|
+| Clean clone | `models/yolo11n.pt` or downloadable `yolo11n.pt` | Person detection, tracking, normalized/pixel zones, intrusion events, privacy blur, audit artifacts | Helmet, vest, gloves, boots, goggles, or `no_*` detection |
+| PPE-enabled | A compatible custom checkpoint such as `models/ppe_yolo11n.pt` | The clean-clone capabilities plus the PPE classes actually present in that checkpoint | Missing PPE is never inferred merely because a positive box was absent |
+
+The default model discovery order is:
+
+1. `models/ppe_yolo11n.pt`
+2. `models/ppe_yolo11s.pt`
+3. `models/yolo11n.pt`
+4. downloadable Ultralytics model name `yolo11n.pt`
+
+The Web UI also inspects and displays the selected model's class list, hash when available, and effective capability.
+
+## System architecture
+
+```text
+Image / Video / Webcam / RTSP
+              │
+              ▼
+      YOLO detector adapter
+   class-aware confidence floors
+              │
+              ▼
+  tracker (Ultralytics or IoU fallback)
+              │
+        ┌─────┴──────────┐
+        ▼                ▼
+person ↔ PPE          zone geometry
+ association      pixel or normalized
+        └─────┬──────────┘
+              ▼
+       safety rule engine
+  active findings + new events
+              │
+        privacy processing
+              │
+      ┌───────┼───────────┐
+      ▼       ▼           ▼
+ annotations  evidence    audit logs
+ image/video  snapshots   CSV/JSONL/manifest
+```
+
+See [`docs/architecture.md`](docs/architecture.md) for lifecycle, trust boundaries, and extension points.
 
 ## Features
 
-- ✅ **PPE detection** — person, helmet, vest, gloves, boots, goggles
-- ✅ **Explicit missing-PPE detection** — `no_helmet`, `no_goggle`, `no_gloves`, `no_boots` (dataset-dependent)
-- ✅ **Person-level PPE compliance** — geometry-based association reports per worker
-- ✅ **Person detection fallback** — general-person detection with `yolo11n.pt` when no PPE model is present
-- ✅ **Restricted-zone intrusion detection** — configurable polygonal zones with per-zone risk levels
-- ✅ **Risk-level rule engine** — deterministic escalation: low → medium → high → critical
-- ✅ **Event de-duplication** — cooldown-based merging of repeated violations
-- ✅ **Event logging** — every event to JSONL and CSV in `outputs/events/`
-- ✅ **Detection audit logs** — every detection to JSONL and CSV
-- ✅ **Compliance logs** — per-person PPE status to JSONL and CSV
-- ✅ **Event aggregation** — per-run `summary.json` / `summary.csv`
-- ✅ **Annotated image/video output** — bounding boxes, labels, zones, and risk summaries
-- ✅ **Privacy-preserving face/person blur** — optional upper-body / face-region blurring
-- ✅ **Web demo** — Streamlit app with upload, webcam snapshot, RTSP/live camera, zone editor, reports
-- ✅ **CLI tools** — `infer-image`, `infer-video`, `infer-camera`, `train`, `export-report`, `export-model`
-- ✅ **Validation suite** — per-class metrics, confusion matrix, PR/F1 curves, batch galleries
-- ✅ **Benchmarking** — FPS on CPU/MPS/CUDA
-- ✅ **Model export** — ONNX/TorchScript/OpenVINO/TensorRT
-- ✅ **YOLO fine-tuning support** — wrapper for custom PPE / safety datasets
+- Image, video, webcam, device-path, and RTSP inference
+- Person and optional PPE detection through Ultralytics YOLO
+- Person-PPE association with positive/negative conflict resolution
+- Restricted zones in pixel or resolution-independent normalized coordinates
+- Per-zone risk, dwell time, and required-PPE policy fields
+- Deterministic `low` / `medium` / `high` / `critical` escalation
+- Cooldown-based event de-duplication without hiding active findings
+- Temporary per-stream track IDs; no identity recognition
+- Exact face blur when a face box exists, conservative person fallback otherwise
+- Event, detection, compliance, and aggregate logs in JSONL and CSV
+- Annotated image/video and event snapshots
+- Run manifests with artifact size and SHA-256 inventory
+- Failed-run manifests and atomic `latest.json` publication for successful runs
+- English, Simplified Chinese, and Traditional Chinese annotations/UI
+- Streamlit zone editor, model audit, run history, filters, evidence gallery, and ZIP downloads
+- Custom PPE training, validation artifacts, device benchmark, and model export
 
----
+## Quick start on a new computer
 
-## Architecture
-
-```text
-Image / Video / Camera
-         │
-         ▼
-   YOLO Detector
-         │
-         ▼
-   Tracker (ByteTrack / BoT-SORT or IoU fallback)
-         │
-         ▼
-   Zone Intrusion Checker
-         │
-         ▼
-   Safety Rule Engine
-         │
-         ▼
-   Event Logger + Annotator + Summary Reporter
-         │
-         ▼
-   Dashboard / Reports / Annotated Outputs
-```
-
----
-
-## Setup
-
-Requires [Miniconda](https://docs.conda.io/en/latest/miniconda.html) (or Anaconda).
-
-> **Python version**: Tested on Python 3.10–3.12. Python 3.13 is not yet supported
-> because numpy 1.x does not provide wheels for it.
+Python 3.11 is the reference environment. Python 3.10–3.12 are supported by the package metadata; Python 3.13 is intentionally excluded from the current dependency range.
 
 ```bash
 conda env create -f environment.yml
@@ -92,131 +101,172 @@ conda activate utility-safety-ai
 pip install -e ".[dev]"
 ```
 
-The default inference model is auto-discovered in this order:
-
-1. `models/ppe_yolo11n.pt` if present — fast, CPU-friendly PPE model (default).
-2. `models/ppe_yolo11s.pt` if present — slightly heavier, marginally stronger PPE model.
-3. `yolo11n.pt` otherwise — Ultralytics downloads it automatically on first use.
-
-To use a specific model, pass `--model path/to/model.pt` to the CLI or set the model path in the web UI.
-
-To train the PPE model yourself, see [Training a Custom PPE Model](#training-a-custom-ppe-model).
-
----
-
-## Quick Demo
-
-Generate the demo video and localized zone file:
+For the exact direct versions used by the 2026-07-13 Python 3.11 release gate:
 
 ```bash
-python scripts/make_demo_assets.py
+pip install -e ".[dev]" -c constraints-py311.txt
 ```
 
-Run image inference on a real construction scene (person + helmet + vest + goggles + zone intrusion):
+The constraints file is a known-good reference, not a universal cross-platform lock; PyTorch and
+accelerator wheels still depend on the target operating system and hardware.
+
+Fetch and pin the small general model locally. The command records its SHA-256 and installed Ultralytics version beside the checkpoint:
+
+```bash
+utility-safety-ai fetch-model --model yolo11n.pt --output models
+```
+
+Run the clean-clone person + zone demo on a provenance-tracked CC0 image:
 
 ```bash
 utility-safety-ai infer-image \
   --source examples/sample_images/construction_zone_01.jpg \
+  --model models/yolo11n.pt \
   --zones examples/zones_construction_zone_01.yaml \
-  --output outputs/demo-ppe/construction_zone_01 \
+  --output outputs/quickstart \
   --blur-faces
 ```
 
-Run a full PPE detection demo that also shows gloves and boots:
+The command prints the exact run directory. You can also inspect the atomically updated pointer:
+
+```bash
+cat outputs/quickstart/latest.json
+make show-latest OUTPUT=outputs/quickstart
+```
+
+## Run-scoped outputs
+
+Inference never silently clears another run. By default it writes a new directory; reusing a supplied `--run-id` fails unless `--overwrite` is explicit. Explicit replacement is transactional: the old completed run remains published until the new run fully succeeds, and failed replacement evidence is isolated under `failed-runs/`.
+
+```text
+outputs/quickstart/
+├── latest.json
+└── runs/
+    └── <run-id>/
+        ├── manifest.json
+        ├── images/<source>_annotated.jpg
+        ├── videos/<source>_annotated.mp4
+        ├── snapshots/<event-id>.jpg
+        └── events/
+            ├── events.jsonl
+            ├── events.csv
+            ├── detections.jsonl
+            ├── detections.csv
+            ├── compliance.jsonl
+            ├── compliance.csv
+            ├── summary.json
+            └── summary.csv
+```
+
+Successful runs update `latest.json`; a failed run records its error but does not replace the last successful pointer. Source credentials are redacted from audit text, and privacy processing occurs before annotated media and snapshots are saved.
+
+## CLI recipes
+
+### Image
 
 ```bash
 utility-safety-ai infer-image \
-  --source examples/sample_images/construction_site_ppe_01.jpg \
-  --zones examples/zones_construction_site_ppe_01.yaml \
-  --output outputs/demo-ppe/construction_site_ppe_01 \
+  --source path/to/image.jpg \
+  --zones examples/zones_solar_inspection_pexels_4254172.yaml \
+  --output outputs/image \
   --blur-faces
 ```
 
-Or run the no-zone full-PPE reference image:
-
-```bash
-utility-safety-ai infer-image \
-  --source examples/sample_images/construction_worker_gloves_01.jpg \
-  --output outputs/demo-ppe/gloves_demo \
-  --blur-faces
-```
-
-Run video inference on the generated panning clip:
+### Video
 
 ```bash
 utility-safety-ai infer-video \
-  --source examples/sample_videos/construction_site_pan.mp4 \
-  --zones examples/zones_construction_zone_01.yaml \
-  --output outputs/demo-ppe-video \
+  --source examples/sample_videos/construction_rebar_pexels_10294768.mp4 \
+  --model models/yolo11n.pt \
+  --zones examples/zones_construction_rebar_pexels_10294768.yaml \
+  --output outputs/video \
+  --max-frames 300 \
   --blur-faces
 ```
 
-Run a full-PPE video demo (person, helmet, vest, gloves, boots, goggles):
+### Webcam or RTSP
 
 ```bash
-utility-safety-ai infer-video \
-  --source examples/sample_videos/construction_ppe_pan.mp4 \
-  --output outputs/demo-ppe-full-ppe-video \
-  --blur-faces
-```
-
-Run live camera / RTSP / webcam inference:
-
-```bash
-# Webcam (device 0) for 10 seconds
+# Webcam index 0
 utility-safety-ai infer-camera \
   --source 0 \
-  --zones examples/zones_construction_zone_01.yaml \
-  --output outputs/demo-camera \
-  --blur-faces \
-  --duration 10
+  --output outputs/camera \
+  --duration 10 \
+  --blur-faces
 
-# RTSP stream
+# Credentials are redacted from manifests and text reports.
 utility-safety-ai infer-camera \
-  --source rtsp://user:pass@camera.local/stream \
-  --output outputs/rtsp-demo \
-  --duration 30
+  --source 'rtsp://user:password@camera.example/live?token=secret' \
+  --output outputs/rtsp \
+  --max-frames 300 \
+  --blur-faces
 ```
 
-Validate a trained model and produce metrics, confusion matrix, and PR/F1 curves:
+OpenCV preview is opt-in with `--display` and requires a GUI-enabled OpenCV build. Saved video remains the normal review path for headless machines.
 
-```bash
-make validate
-# or
-python scripts/validate_ppe_model.py --model models/ppe_yolo11n.pt --output outputs/validation
-```
-
-Benchmark FPS on CPU and available accelerators:
-
-```bash
-make benchmark
-# or
-python scripts/benchmark.py --model models/ppe_yolo11n.pt --output outputs/benchmark
-```
-
-Export a trained model for deployment:
-
-```bash
-python scripts/export_model.py --model models/ppe_yolo11n.pt --format onnx --output outputs/export
-```
-
-Export a CSV report:
+### Reports and model export
 
 ```bash
 utility-safety-ai export-report \
-  --events outputs/demo-ppe/construction_zone_01/events/events.jsonl \
-  --output outputs/demo-ppe-report.csv
+  --events outputs/quickstart/runs/<run-id>/events/events.jsonl \
+  --format csv \
+  --output outputs/quickstart-report.csv
+
+utility-safety-ai export-model \
+  --model models/ppe_yolo11n.pt \
+  --format onnx \
+  --output outputs/export
 ```
 
----
+Run `utility-safety-ai --help` or `utility-safety-ai <command> --help` for all thresholds, devices, cooldown, run ID, and overwrite options.
 
-## Training a Custom PPE Model
+## Web demo
 
-The system supports training on the Ultralytics **Construction-PPE** dataset so it can detect positive PPE classes (`helmet`, `vest`, `gloves`, `boots`, `goggles`) and missing-PPE classes (`no_helmet`, `no_goggle`, `no_gloves`, `no_boots`).
+```bash
+streamlit run app.py
+```
 
-> **Dataset note**: `construction-ppe.yaml` is an Ultralytics dataset alias. If it is not
-> auto-downloaded, download the Construction-PPE dataset and point `--data` to its
-> `data.yaml`, or run `python scripts/validate_ppe_model.py --data <path>`.
+![Streamlit workbench with portable model path and privacy enabled by default](docs/assets/web-dashboard.jpg)
+
+The Web UI provides:
+
+- Image/video upload and browser camera snapshots
+- Bounded RTSP/device processing and a live preview mode
+- Per-session private output roots and the latest 20 in-session runs
+- Model path, device, confidence, IoU, cooldown, and privacy controls
+- Privacy blur enabled by default
+- Visual-table and YAML editors for normalized zones
+- Resolution-aware zone preview and downloadable zone YAML
+- Annotated results, filtered risk/event tables, detection charts, PPE compliance, and evidence snapshots
+- Model classes, capabilities, device, and checkpoint SHA-256 when available
+- CSV/JSONL, separate core/Web manifests, and an audit-report ZIP download
+
+RTSP fields are masked in the UI. The application also sanitizes credentials in persisted text artifacts, but operators must still protect local files, shell history, footage, and network access.
+
+## Zone configuration
+
+Pixel coordinates remain supported. Normalized coordinates are recommended because they scale across resolutions:
+
+```yaml
+zones:
+  - id: live_switchgear
+    name: Live Switchgear Boundary
+    risk_level: high
+    coordinate_space: normalized
+    dwell_seconds: 1.5
+    required_ppe: [helmet, vest, gloves]
+    polygon:
+      - [0.55, 0.45]
+      - [0.95, 0.45]
+      - [0.95, 0.95]
+      - [0.55, 0.95]
+```
+
+Zone files are schema-validated. Explicitly supplied missing files, unsupported fields, invalid risk levels, duplicate IDs, degenerate polygons, and out-of-range normalized points fail fast.
+
+## Custom PPE model
+
+Training is optional and is not required for person + zone inference.
 
 ```bash
 utility-safety-ai train \
@@ -224,211 +274,98 @@ utility-safety-ai train \
   --model yolo11n.pt \
   --epochs 30 \
   --imgsz 640 \
+  --batch 16 \
   --project runs/train_ppe \
-  --name ppe_yolo11n_30ep
-```
+  --name ppe_yolo11n
 
-After training, copy the best weights so the CLI and web app use them automatically:
-
-```bash
 mkdir -p models
-cp runs/train_ppe/ppe_yolo11n_30ep/weights/best.pt models/ppe_yolo11n.pt
+cp runs/train_ppe/ppe_yolo11n/weights/best.pt models/ppe_yolo11n.pt
 ```
 
-### Example training results
-
-Models trained for 30 epochs on the Ultralytics Construction-PPE dataset achieved the following validation mAP50 on the 143-image validation split:
-
-| Class     | yolo11n | yolo11s | Notes |
-|-----------|---------|---------|-------|
-| all       | 0.588   | 0.602   | Aggregate across all classes |
-| helmet    | 0.846   | 0.809   | Reliable head protection detection |
-| gloves    | 0.810   | 0.804   | Reliable hand protection detection |
-| vest      | 0.849   | 0.826   | Reliable high-visibility vest detection |
-| boots     | 0.808   | 0.818   | Reliable foot protection detection |
-| goggles   | 0.793   | 0.820   | Reliable eye protection detection |
-| Person    | 0.905   | 0.911   | Reliable person detection |
-| no_helmet | 0.400   | 0.477   | Moderate; depends on viewpoint and lighting |
-| no_goggle | 0.177   | 0.217   | Weak; few explicit no-goggle training examples |
-| no_gloves | 0.248   | 0.282   | Weak; often confused with occluded hands |
-| no_boots  | 0.079   | 0.030   | Very weak; not reliable for alerts in this prototype |
-
-`yolo11n` is the default because it runs roughly 2× faster on CPU while delivering nearly identical positive-PPE quality. `yolo11s` is available as a higher-capacity alternative if you can tolerate the extra latency.
-
-Positive PPE classes (`helmet`, `vest`, `gloves`, `boots`, `goggles`) are detected reliably and are the primary demo focus. Explicit missing-PPE classes (`no_*`) are much harder with the public dataset and are documented honestly; they should not be used as the sole trigger for safety enforcement without further data collection and validation.
-
-Validate the trained model and save per-class metrics:
+Then validate and benchmark the exact checkpoint:
 
 ```bash
-make validate
-# or
-python scripts/validate_ppe_model.py --model models/ppe_yolo11n.pt --output outputs/validation
+python scripts/validate_ppe_model.py \
+  --model models/ppe_yolo11n.pt \
+  --data construction-ppe.yaml \
+  --output outputs/validation/ppe_yolo11n
+
+python scripts/benchmark.py \
+  --model models/ppe_yolo11n.pt \
+  --output outputs/benchmark/ppe_yolo11n
 ```
 
-Then run inference without specifying `--model`:
+The exact locally promoted checkpoint (SHA-256 `b05d39db…cefff`) reached precision 0.6903,
+recall 0.5515, mAP50 0.5786, and mAP50-95 0.2860 on the 143-image Construction-PPE validation
+split. Its explicit negative classes are much weaker—`no_boots` recall was zero on four validation
+instances—so this remains an engineering demonstration checkpoint, not field-ready safety evidence.
+The weight is not distributed in Git and non-deterministic retraining will produce a different hash.
+See the retained [evaluation artifacts](docs/model-evaluation/ppe_yolo11n-v1/README.md),
+[`docs/model-card.md`](docs/model-card.md), and [`docs/dataset-card.md`](docs/dataset-card.md).
 
-```bash
-utility-safety-ai infer-image \
-  --source examples/sample_images/construction_zone_01.jpg \
-  --zones examples/zones_construction_zone_01.yaml \
-  --output outputs/demo-ppe
-```
+## Verification
 
-For your own data, create a standard Ultralytics YOLO dataset YAML:
-
-```yaml
-path: datasets/my_ppe
-train: images/train
-val: images/val
-nc: 11
-names:
-  - person
-  - helmet
-  - vest
-  - gloves
-  - boots
-  - goggles
-  - no_helmet
-  - no_vest
-  - no_gloves
-  - no_boots
-  - no_goggles
-```
-
----
-
-## Web Demo
-
-```bash
-streamlit run app.py
-```
-
-The demo supports:
-
-- Image and video upload
-- Webcam snapshot
-- RTSP / live camera URL (processes a configurable number of frames)
-- Model, confidence, IoU, device selection
-- Privacy blur toggle
-- Preset or custom restricted-zone YAML editor
-- Annotated result/video preview
-- Events table with risk badges
-- Detections table and class distribution chart
-- Per-person PPE compliance table
-- Summary metrics
-- Downloadable CSV, JSONL, and ZIP reports
-
----
-
-## Project Structure
-
-```text
-utility-site-safety-ai-system/
-├── app.py                          # Streamlit web demo
-├── environment.yml                 # Conda environment spec
-├── requirements.txt                # Pip dependencies
-├── pyproject.toml                  # Package metadata + entry points
-├── Makefile                        # Install / test / demo helpers
-├── README.md
-├── AGENTS.md                       # Agent implementation spec
-├── examples/                       # CC0 sample images, videos, zones
-│   ├── sample_images/
-│   ├── sample_videos/
-│   └── zones_*.yaml
-├── datasets/                       # Downloaded PPE datasets (gitignored)
-├── scripts/                        # Demo assets, validation, benchmark, export
-├── src/utility_safety_ai/          # Main package
-│   ├── cli.py
-│   ├── compliance/                 # Person-PPE association + compliance reports
-│   ├── detection/
-│   ├── events/
-│   ├── pipelines/
-│   ├── privacy/
-│   ├── rules/
-│   ├── tracking/
-│   ├── training/
-│   ├── utils/
-│   ├── visualization/
-│   └── zones/
-├── tests/                          # pytest suite
-└── outputs/                        # Generated results (gitignored)
-```
-
----
-
-## Output Layout
-
-After inference you will find:
-
-```text
-outputs/<run>/
-├── images/            # Annotated input images
-├── videos/            # Annotated output videos
-├── events/
-│   ├── events.jsonl   # Structured safety-event log
-│   ├── events.csv     # Safety-event spreadsheet
-│   ├── detections.jsonl  # Every detected object
-│   ├── detections.csv    # Detection spreadsheet
-│   ├── compliance.jsonl  # Per-person PPE compliance
-│   ├── compliance.csv    # Per-person PPE compliance (CSV)
-│   ├── summary.json   # Aggregated counts
-│   └── summary.csv    # Aggregated counts (CSV)
-└── snapshots/         # Cropped evidence per event
-```
-
----
-
-## Tests
+Offline tests do not download a model or dataset:
 
 ```bash
 pytest -q
+ruff check .
+mypy src/utility_safety_ai
+python -m py_compile app.py
 ```
 
-Optional linting:
+For a release-quality check:
 
 ```bash
-ruff check .
+pytest -q --cov=utility_safety_ai --cov-report=term-missing --cov-fail-under=70
+python -m build
 ```
 
----
+The final machine-specific results belong in [`REPORT.md`](REPORT.md), not in evergreen instructions.
 
-## Resume Bullets
+## Documentation
 
-- Built an open-source computer vision safety monitoring system for utility and construction scenarios, supporting PPE compliance detection, restricted-zone intrusion alerts, event logging, privacy-preserving face blurring, and web-based inspection reports.
-- Designed a modular safety rule engine that converts YOLO detections and restricted-zone geometry into risk-ranked safety events, with event de-duplication, CSV/JSONL reporting, and aggregated run summaries.
-- Delivered CPU-first inference pipelines, a Streamlit demo with preset hazard zones, and reproducible Conda packaging suitable for open-source portfolio and technical demo videos.
+- [`docs/architecture.md`](docs/architecture.md) — processing and audit architecture
+- [`docs/model-card.md`](docs/model-card.md) — intended model use and evaluation contract
+- [`docs/dataset-card.md`](docs/dataset-card.md) — Construction-PPE and example-asset lineage
+- [`docs/demo-script.md`](docs/demo-script.md) — repeatable Bilibili/portfolio demo flow
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution workflow and quality bar
+- [`SECURITY.md`](SECURITY.md) — responsible vulnerability reporting
+- [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) — dependency, model, dataset, and media boundaries
+- [`examples/assets.yaml`](examples/assets.yaml) — machine-readable example provenance and SHA-256 values
 
----
+## Known limitations
 
-## Model Capabilities and Limitations
+- The default COCO model is not a PPE model.
+- PPE and explicit `no_*` performance depends on the checkpoint, label balance, camera placement, distance, weather, lighting, occlusion, and site domain.
+- `unknown` means unobserved; it is neither compliant nor a confirmed violation.
+- Bounding-box association can mis-assign PPE when people overlap.
+- The fallback tracker does not provide identity or long-occlusion re-identification.
+- Track fragmentation can increase temporary-track counts and can emit another event after an ID changes; summaries never claim those IDs are unique people.
+- Zone checks use the person's bottom-center point and do not replace camera calibration or 3D site geometry.
+- Face blur is a privacy aid, not a complete anonymization guarantee.
+- RTSP reconnect behavior is bounded; this is not a multi-camera operations platform.
+- Model exports require format-specific runtimes and independent accuracy validation.
+- The system is not certified under any industrial safety, cybersecurity, or privacy standard.
 
-### What the default model can do
+## Safety, privacy, and ethics
 
-- If `models/ppe_yolo11n.pt` (or `models/ppe_yolo11s.pt`) is present, the system can detect **person**, **helmet**, **vest**, **gloves**, **boots**, and **goggles** as well as explicit missing-PPE classes (`no_helmet`, `no_goggle`, `no_gloves`, `no_boots`).
-- If no PPE model is found, the default `yolo11n.pt` (COCO pretrained) reliably detects **people** and supports **restricted-zone intrusion** alerts.
+- Do not use this project for face recognition, identity inference, employee scoring, or automated discipline.
+- Use temporary track IDs only within the current media stream.
+- Enable privacy blur for real people and apply appropriate access control and retention rules.
+- Treat every alert as a review candidate, never as proof of misconduct.
+- Validate with site-specific data before any field trial and define a safe fallback when the model is unavailable.
 
-### What a custom PPE model can do
+## Resume-ready bullets
 
-- A model fine-tuned on the Ultralytics Construction-PPE dataset learns site-specific positive PPE classes and missing-PPE classes.
-- The rule engine emits PPE violation events and escalates risk when, for example, a worker without a helmet enters a high-risk zone.
+- Built an audit-oriented computer-vision safety prototype for utility and construction worksites, combining person/PPE detection, normalized hazard zones, temporary tracking, risk-ranked event aggregation, privacy-protected evidence, and run-scoped CSV/JSONL reporting.
+- Designed a modular safety rule engine that resolves contradictory PPE evidence per worker, separates active findings from cooldown-filtered events, and escalates combined zone/PPE hazards deterministically.
+- Delivered CPU-first CLI and Streamlit workflows with immutable run manifests, artifact hashes, RTSP credential redaction, custom YOLO training/validation/export support, and offline end-to-end tests.
 
-### Limitations
+## Licensing and asset provenance
 
-- **Not production-certified.** This is a research and engineering prototype; human safety officers remain essential.
-- **Model performance depends on dataset quality.** The provided training command is a starting point; real deployments need site-specific data and validation. PPE classes such as `vest`, `gloves`, and `boots` may be rare or low-confidence until the model is trained on representative data.
-- **Missing-PPE events are only emitted for explicit `no_*` detections or geometry-based person-PPE association.** The system does **not** infer a missing helmet from the absence of a `helmet` box, because that produces too many false positives. Person-level compliance reports mark unobserved items as `unknown` rather than `no`.
-- **Person-PPE association** depends on bounding-box overlap; heavily occluded or distant items may be mis-assigned or marked `unknown`.
-- **Restricted-zone accuracy** depends on camera perspective, calibration, and correct polygon configuration.
-- **Face blurring is a privacy aid**, not a guarantee of full anonymisation.
-- **False positives and negatives** are possible; always review event evidence before acting.
-- **Industrial deployment gaps** include multi-camera tracking, edge-device optimization, real-time streaming latency, robustness to night/rain, role-based alert routing, audit logging retention, and regulatory certification.
+The repository's original project code is offered under the root [`LICENSE`](LICENSE) (MIT). That license does **not** relicense third-party dependencies, Ultralytics software, YOLO weights, datasets, or example media.
 
----
+Ultralytics currently distributes its software and YOLO models under AGPL-3.0 and commercial Enterprise terms. The Construction-PPE dataset is documented as AGPL-3.0. Anyone using this stack—especially in a proprietary, internal-company, embedded, SaaS, or commercial context—must review the applicable upstream terms and obtain an appropriate license where required. This repository does not provide legal advice or an enterprise deployment grant.
 
-## License
-
-MIT License — see [LICENSE](LICENSE).
-
-Sample images `construction_zone_01.jpg`, `electrical_engineer_01.jpg`, and `solar_farm_01.jpg` are sourced from [PxHere](https://pxhere.com) under CC0 / public domain.
-`construction_site_ppe_01.jpg` and `construction_worker_gloves_01.jpg` are samples from the Ultralytics Construction-PPE dataset and are included for full-PPE detection demonstration.
-`construction_ppe_pan.mp4` is generated from `construction_site_ppe_01.jpg` for video-demo purposes.
+See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), [`docs/dataset-card.md`](docs/dataset-card.md), and [`examples/assets.yaml`](examples/assets.yaml) before redistributing models, datasets, or media.

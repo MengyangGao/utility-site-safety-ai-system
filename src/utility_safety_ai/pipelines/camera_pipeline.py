@@ -1,19 +1,16 @@
-"""Live camera / webcam / RTSP inference pipeline."""
+"""Live camera, webcam, and RTSP inference pipeline."""
 
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-from ..compliance.compliance_reporter import ComplianceReporter
-from ..compliance.person_ppe_association import associate_ppe_to_persons
 from ..detection.yolo_detector import YoloDetector
-from ..events.detection_logger import DetectionLogger
 from ..events.event import SafetyEvent
-from ..events.event_logger import EventLogger
 from ..events.summary import write_summary
 from ..privacy.face_blur import blur_faces
 from ..rules.rule_engine import RuleEngine
@@ -21,17 +18,54 @@ from ..tracking.simple_tracker import SimpleTracker
 from ..utils.paths import OutputPaths
 from ..visualization.annotator import annotate_image
 from ..zones.zone import Zone
+from ._artifacts import (
+    RunArtifacts,
+    detector_manifest,
+    open_video_writer,
+    opencv_display_available,
+    redact_source,
+    unavailable_source_integrity,
+    validate_video_output,
+    zones_manifest,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def _resolve_capture_source(source: str | int) -> str | int:
-    """Convert string webcam indices to integers; keep RTSP/URL strings as-is."""
+    """Convert string webcam indices to integers; keep URLs and paths as-is."""
     if isinstance(source, int):
         return source
-    if source.isdigit():
-        return int(source)
-    return source
+    return int(source) if source.isdigit() else source
+
+
+def _is_network_source(source: str | int) -> bool:
+    return isinstance(source, str) and source.lower().startswith(("rtsp://", "rtsps://", "http://", "https://"))
+
+
+def _reconnect_network_capture(
+    source: str,
+    *,
+    attempts: int,
+    delay_seconds: float,
+):
+    """Try to reconnect a network stream and return ``(capture, first_frame)``."""
+    safe_source = redact_source(source)
+    for attempt in range(1, attempts + 1):
+        logger.warning(
+            "Frame read failed for %s; reconnecting (%d/%d)",
+            safe_source,
+            attempt,
+            attempts,
+        )
+        if delay_seconds:
+            time.sleep(delay_seconds)
+        capture = cv2.VideoCapture(source)
+        ok, frame = capture.read() if capture.isOpened() else (False, None)
+        if ok and frame is not None and frame.size:
+            return capture, frame
+        capture.release()
+    return None, None
 
 
 def run_camera_pipeline(
@@ -44,179 +78,215 @@ def run_camera_pipeline(
     duration_seconds: float | None = None,
     max_frames: int | None = None,
     display: bool = False,
+    *,
+    run_id: str | None = None,
+    overwrite: bool = False,
+    reconnect_attempts: int = 3,
+    reconnect_delay_seconds: float = 0.5,
+    audit_source: str | None = None,
 ) -> list[SafetyEvent]:
-    """Run live inference on a webcam, RTSP stream, or other video capture source.
-
-    Args:
-        source: Webcam index (e.g. ``0``), RTSP URL, or local camera path.
-        output_root: Directory where outputs are written.
-        detector: Initialized YOLO detector.
-        zones: Restricted zones to check.
-        rule_engine: Rule engine instance. If None, a default engine is used.
-        blur_faces_enabled: Whether to blur privacy-sensitive regions.
-        duration_seconds: Optional runtime limit in seconds.
-        max_frames: Optional frame limit.
-        display: Whether to show a live preview window (requires a display).
-
-    Returns:
-        List of all emitted safety events.
-    """
-    output_paths = OutputPaths(output_root)
-    output_paths.ensure_directories()
-    output_paths.reset_logs()
+    """Run live inference with monotonic timing and credential-safe logging."""
+    if duration_seconds is not None and duration_seconds <= 0:
+        raise ValueError("duration_seconds must be greater than zero")
+    if max_frames is not None and max_frames <= 0:
+        raise ValueError("max_frames must be greater than zero")
+    if reconnect_attempts < 0:
+        raise ValueError("reconnect_attempts must be non-negative")
+    if reconnect_delay_seconds < 0:
+        raise ValueError("reconnect_delay_seconds must be non-negative")
+    if display and not opencv_display_available():
+        raise RuntimeError(
+            "OpenCV preview is unavailable in this headless environment. Omit --display and inspect the saved MP4."
+        )
 
     capture_source = _resolve_capture_source(source)
+    safe_source = redact_source(
+        audit_source if audit_source is not None else source,
+        portable_local=True,
+    )
     cap = cv2.VideoCapture(capture_source)
     if not cap.isOpened():
-        raise ValueError(f"Could not open camera/source: {source}")
+        cap.release()
+        raise ValueError(f"Could not open camera/source: {safe_source}")
+    first_ok, first_frame = cap.read()
+    if not first_ok or first_frame is None or first_frame.size == 0:
+        cap.release()
+        raise ValueError(f"Camera/source produced no decodable frame: {safe_source}")
 
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or 640
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or 480
-
-    out_video_path = output_paths.videos / "camera_output.mp4"
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(str(out_video_path), fourcc, fps, (width, height))
+    fps = float(cap.get(cv2.CAP_PROP_FPS))
+    if not 0.1 <= fps <= 240.0:
+        fps = 30.0
+    height, width = first_frame.shape[:2]
 
     engine = rule_engine or RuleEngine(zones=zones)
-    event_logger = EventLogger(output_paths.events)
-    detection_logger = DetectionLogger(output_paths.events)
-    compliance_reporter = ComplianceReporter(output_paths.events)
-    fallback_tracker = SimpleTracker()
+    output_paths = OutputPaths(output_root, run_id=run_id, overwrite=overwrite)
+    output_paths.start_manifest(
+        source_type="camera",
+        source=safe_source,
+        model=detector_manifest(detector),
+        source_integrity=unavailable_source_integrity(
+            "live camera or network stream has no stable whole-input file"
+        ),
+        config={
+            "privacy_blur_enabled": blur_faces_enabled,
+            "duration_seconds": duration_seconds,
+            "max_frames": max_frames,
+            "capture_fps": fps,
+            "frame_size": [width, height],
+            "reconnect_attempts": reconnect_attempts,
+            "reconnect_delay_seconds": reconnect_delay_seconds,
+            "display_enabled": display,
+            "zones": zones_manifest(zones),
+            "rule_engine": {
+                "cooldown_seconds": engine.cooldown_seconds,
+                "rules_config": engine.rules_config,
+            },
+        },
+    )
+    out_video_path = output_paths.videos / "camera_annotated.mp4"
+    writer: cv2.VideoWriter | None = None
     all_events: list[SafetyEvent] = []
     total_detections = 0
     frame_index = 0
-
-    logger.info(
-        "Started live inference from %s (%dx%d @ %.1f fps). Press 'q' in the preview window to stop.",
-        source,
-        width,
-        height,
-        fps,
-    )
+    reconnects = 0
 
     try:
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                logger.warning("Camera stream ended or frame read failed at frame %d", frame_index)
-                break
+        writer = open_video_writer(
+            out_video_path,
+            fps=fps,
+            frame_size=(width, height),
+        )
+        artifacts = RunArtifacts(output_paths)
+        engine.reset()
+        reset_tracking = getattr(detector, "reset_tracking", None)
+        if callable(reset_tracking):
+            reset_tracking()
+        fallback_tracker = SimpleTracker()
+        shared_metadata = {
+            "run_id": output_paths.run_id,
+            "confidence_threshold": getattr(detector, "conf", None),
+            "capture_fps": fps,
+            "privacy_blur_enabled": blur_faces_enabled,
+            "frame_size": (width, height),
+        }
+        started_at = time.monotonic()
+        frame: np.ndarray | None = first_frame
 
-            time_seconds = frame_index / fps
-            if duration_seconds is not None and time_seconds >= duration_seconds:
+        while frame is not None:
+            elapsed = time.monotonic() - started_at
+            if duration_seconds is not None and elapsed >= duration_seconds:
                 break
             if max_frames is not None and frame_index >= max_frames:
                 break
 
             detections = detector.track(frame)
-            if any(d.track_id is None for d in detections):
-                detections = fallback_tracker.update(detections)
-
-            # Apply privacy blur on a copy so the original frame is still available
-            # for internal debugging / audit if ever needed.
+            detections = fallback_tracker.update(detections)
             display_frame = blur_faces(
-                frame.copy(), detections, enabled=blur_faces_enabled
+                frame.copy(),
+                detections,
+                enabled=blur_faces_enabled,
             )
-            shared_metadata = {
-                "confidence_threshold": detector.conf,
-                "fps": fps,
-                "privacy_blur_enabled": blur_faces_enabled,
-            }
-
-            events = engine.evaluate(
+            evaluation = engine.evaluate_frame(
                 detections,
                 source_type="camera",
-                source_path=str(source),
+                source_path=safe_source,
                 frame_index=frame_index,
-                time_seconds=time_seconds,
+                time_seconds=elapsed,
                 metadata=shared_metadata,
             )
-
-            annotated = annotate_image(display_frame, zones, detections, events)
+            annotated = annotate_image(
+                display_frame,
+                zones,
+                detections,
+                evaluation.active_findings,
+            )
+            if annotated.shape[:2] != (height, width):
+                raise ValueError("Annotated camera frame dimensions changed during processing")
             writer.write(annotated)
-
-            updated_frame_events: list[SafetyEvent] = []
-            for event in events:
-                snapshot_path = _save_snapshot(
-                    display_frame, event, output_paths.snapshots
-                )
-                if snapshot_path:
-                    event = SafetyEvent(
-                        event_id=event.event_id,
-                        timestamp=event.timestamp,
-                        source_type=event.source_type,
-                        source_path=event.source_path,
-                        frame_index=event.frame_index,
-                        time_seconds=event.time_seconds,
-                        risk_level=event.risk_level,
-                        event_type=event.event_type,
-                        description=event.description,
-                        person_track_id=event.person_track_id,
-                        bbox=event.bbox,
-                        zone_id=event.zone_id,
-                        zone_name=event.zone_name,
-                        snapshot_path=str(snapshot_path),
-                        metadata=event.metadata,
-                    )
-                updated_frame_events.append(event)
-
-            compliance_records, _ = associate_ppe_to_persons(detections)
-            compliance_reporter.write(
-                compliance_records,
-                frame_index=frame_index,
-                time_seconds=time_seconds,
-            )
-
-            all_events.extend(updated_frame_events)
-            event_logger.log_all(updated_frame_events)
-            detection_logger.log_all(
+            updated_events = artifacts.persist_frame(
+                display_frame,
                 detections,
+                evaluation.new_events,
                 source_type="camera",
-                source_path=str(source),
+                source_path=safe_source,
                 frame_index=frame_index,
-                time_seconds=time_seconds,
+                time_seconds=elapsed,
                 metadata=shared_metadata,
             )
+            all_events.extend(updated_events)
             total_detections += len(detections)
 
             if display:
                 cv2.imshow("Utility Site Safety AI", annotated)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
+                    frame_index += 1
                     break
 
             frame_index += 1
-    finally:
-        cap.release()
+            if max_frames is not None and frame_index >= max_frames:
+                break
+
+            ok, next_frame = cap.read()
+            if ok and next_frame is not None and next_frame.size:
+                frame = next_frame
+                continue
+
+            if _is_network_source(capture_source) and reconnect_attempts:
+                cap.release()
+                replacement, next_frame = _reconnect_network_capture(
+                    str(capture_source),
+                    attempts=reconnect_attempts,
+                    delay_seconds=reconnect_delay_seconds,
+                )
+                if replacement is not None:
+                    cap = replacement
+                    frame = next_frame
+                    reconnects += 1
+                    # A reconnect is a new continuity segment: never imply that
+                    # temporary person IDs remain valid across a stream gap.
+                    if callable(reset_tracking):
+                        reset_tracking()
+                    fallback_tracker.reset()
+                    engine.reset()
+                    shared_metadata["stream_segment"] = reconnects
+                    continue
+            logger.warning("Camera stream ended or frame read failed after frame %d", frame_index)
+            frame = None
+
         writer.release()
+        writer = None
+        cap.release()
         if display:
             cv2.destroyAllWindows()
+        validate_video_output(out_video_path, expected_frames=frame_index)
+        write_summary(all_events, output_paths.events)
+        output_paths.complete_manifest(
+            metrics={
+                "frames_processed": frame_index,
+                "detections": total_detections,
+                "events": len(all_events),
+                "reconnections": reconnects,
+                "elapsed_seconds": time.monotonic() - started_at,
+            }
+        )
+    except BaseException as exc:
+        cap.release()
+        if writer is not None:
+            writer.release()
+        if display:
+            cv2.destroyAllWindows()
+        try:
+            output_paths.fail_manifest(exc)
+        except Exception:
+            logger.exception("Failed to record failed-run manifest for %s", output_paths.run_id)
+        raise
 
-    write_summary(all_events, output_paths.events)
     logger.info(
-        "Saved annotated camera clip to %s. Event summary: %d event(s), %d zone intrusion(s), %d PPE violation(s), %d total detection(s)",
-        out_video_path,
+        "Completed camera run %s at %s: %d frame(s), %d event(s), %d detection(s)",
+        output_paths.run_id,
+        output_paths.published_root,
+        frame_index,
         len(all_events),
-        sum(1 for e in all_events if e.event_type == "zone_intrusion"),
-        sum(1 for e in all_events if e.event_type.startswith("missing_")),
         total_detections,
     )
     return all_events
-
-
-def _save_snapshot(
-    image: np.ndarray,
-    event: SafetyEvent,
-    snapshots_dir: Path,
-) -> Path | None:
-    if event.bbox is None:
-        return None
-    x1, y1, x2, y2 = map(int, event.bbox)
-    h, w = image.shape[:2]
-    x1, y1 = max(0, x1), max(0, y1)
-    x2, y2 = min(w, x2), min(h, y2)
-    if x2 <= x1 or y2 <= y1:
-        return None
-    crop = image[y1:y2, x1:x2]
-    snapshot_path = snapshots_dir / f"{event.event_id}.jpg"
-    cv2.imwrite(str(snapshot_path), crop)
-    return snapshot_path

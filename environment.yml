@@ -2,7 +2,9 @@ name: utility-safety-ai
 channels:
   - defaults
 dependencies:
+  # Python 3.11 is the reference runtime used by the release workflow.
   - python=3.11
-  - pip
+  - pip>=24
   - pip:
+      # requirements.txt contains runtime plus development verification tools.
       - -r requirements.txt

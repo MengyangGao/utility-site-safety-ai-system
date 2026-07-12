@@ -1,0 +1,62 @@
+schema_version: 1
+generated_on: "2026-07-13"
+assets:
+  - path: sample_images/construction_zone_01.jpg
+    sha256: 0e7e0ad384be95cda57b7a93ea0ffdcf65f3ca9062e412bf54a5e37adab4f402
+    source_page: https://www.pickpik.com/construction-worker-work-worker-man-industry-building-site-45119
+    license: CC0-1.0
+    provenance: verified
+
+  - path: sample_images/construction_site_ppe_01.jpg
+    sha256: 55f3e120b8f0101ee02ad8e138ec73f06e398225d98cdc990dd4ba7c510992c4
+    source_page: https://docs.ultralytics.com/datasets/detect/construction-ppe/
+    source_dataset_path: images/val/image1085.jpg
+    license: AGPL-3.0
+    provenance: verified
+
+  - path: sample_images/construction_worker_gloves_01.jpg
+    sha256: af76cd3cf97e1a5acd1ae30ab841059f97af8a33627fdbc9b31ebb5469f21c63
+    source_page: https://docs.ultralytics.com/datasets/detect/construction-ppe/
+    source_dataset_path: images/val/image1049.jpg
+    license: AGPL-3.0
+    provenance: verified
+
+  - path: sample_images/solar_inspection_pexels_4254172.jpg
+    sha256: 8d33c8e4a0fe000c5fc7d891f26556b69460e82fa63091db3dd1ede0abd0cbb3
+    source_page: https://www.pexels.com/photo/two-electricians-standing-near-the-solar-panels-4254172/
+    author: Gustavo Fring
+    license: Pexels
+    provenance: verified
+
+  - path: sample_images/electrical_engineer_01.jpg
+    sha256: 9f3aa06f3323e5a40ce8091f2ef0806747e627fe0222dbd768b984bc7f2ac355
+    source_page: https://www.pexels.com/photo/electrician-by-fuse-box-17842832/
+    author: Fatih Yurtman
+    license: Pexels
+    provenance: verified
+
+  - path: sample_images/solar_farm_01.jpg
+    sha256: be6f24f1f3f7119ba2fce82b194abc5360a0d9ef34c098d0234baf2e01aeea85
+    source_page: https://www.pexels.com/photo/engineer-standing-among-solar-panels-19895867/
+    author: ThisIsEngineering
+    license: Pexels
+    provenance: verified
+
+  - path: sample_videos/construction_site_pan.mp4
+    sha256: 960e1d7441d617c6facda28808f7d11903897677463e1adf785c836309039e89
+    derived_from: sample_images/construction_zone_01.jpg
+    generated_by: scripts/make_demo_assets.py
+    provenance: generated
+
+  - path: sample_videos/construction_ppe_pan.mp4
+    sha256: 8eb60e3826b46c210a9a8595c928143f1799cd62bfaa4a320c1ae387860173df
+    derived_from: sample_images/construction_site_ppe_01.jpg
+    generated_by: scripts/make_demo_assets.py
+    provenance: generated
+
+  - path: sample_videos/construction_rebar_pexels_10294768.mp4
+    sha256: 3a981e156b8f6d70532d643eb790e31f547b8f42ed322eb2eeaa7b3bbe999f45
+    source_page: https://www.pexels.com/video/construction-worker-working-wit-rebars-10294768/
+    author: This Viktọ
+    license: Pexels
+    provenance: verified

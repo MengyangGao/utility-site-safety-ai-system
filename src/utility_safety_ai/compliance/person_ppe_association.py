@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from math import isfinite
 
 from ..events.event import Detection
 
@@ -71,11 +72,12 @@ def _association_score(
 class PersonCompliance:
     """Per-person PPE compliance summary."""
 
-    person_track_id: int
+    person_track_id: int | None
     bbox: tuple[float, float, float, float]
     items: dict[str, str] = field(default_factory=dict)
     positive_detections: list[Detection] = field(default_factory=list)
     negative_detections: list[Detection] = field(default_factory=list)
+    conflicting_detections: list[Detection] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # Ensure all PPE types are represented.
@@ -87,8 +89,19 @@ class PersonCompliance:
         return {ppe_type: self.items.get(ppe_type, "unknown") for ppe_type in PPE_TYPES}
 
     def violations(self) -> list[str]:
-        """Return PPE types marked as missing."""
-        return [ppe for ppe, status in self.items.items() if status == "no"]
+        """Return distinct PPE types whose resolved state is missing."""
+        return [ppe for ppe in PPE_TYPES if self.items.get(ppe) == "no"]
+
+    def negative_evidence(self, ppe_type: str) -> Detection | None:
+        """Return the selected negative evidence for a resolved PPE violation."""
+        return next(
+            (
+                detection
+                for detection in self.negative_detections
+                if NEGATIVE_PPE.get(detection.class_name) == ppe_type
+            ),
+            None,
+        )
 
 
 def associate_ppe_to_persons(
@@ -104,6 +117,13 @@ def associate_ppe_to_persons(
     Returns:
         A tuple of (person compliance records, unassociated PPE detections).
     """
+    if (
+        isinstance(iou_threshold, bool)
+        or not isinstance(iou_threshold, (int, float))
+        or not isfinite(float(iou_threshold))
+        or not 0.0 <= iou_threshold <= 1.0
+    ):
+        raise ValueError("iou_threshold must be a finite value between 0 and 1")
     persons = [d for d in detections if d.class_name == "person"]
     ppe_dets = [
         d
@@ -111,42 +131,69 @@ def associate_ppe_to_persons(
         if d.class_name in POSITIVE_PPE or d.class_name in NEGATIVE_PPE
     ]
 
-    compliance_by_person: dict[int, PersonCompliance] = {}
-    for person in persons:
-        compliance_by_person[person.track_id] = PersonCompliance(
-            person_track_id=person.track_id,
-            bbox=person.bbox,
-        )
+    # Index by detection position rather than track ID. Multiple untracked people
+    # legitimately have ``track_id=None`` and must not overwrite one another.
+    records = [
+        PersonCompliance(person_track_id=person.track_id, bbox=person.bbox)
+        for person in persons
+    ]
+    candidates: list[dict[str, dict[str, list[Detection]]]] = [
+        {
+            ppe_type: {"positive": [], "negative": []}
+            for ppe_type in PPE_TYPES
+        }
+        for _ in persons
+    ]
 
     unassociated: list[Detection] = []
 
     for ppe in ppe_dets:
         best_score = iou_threshold
-        best_person: Detection | None = None
-        for person in persons:
+        best_person_index: int | None = None
+        for person_index, person in enumerate(persons):
             score = _association_score(ppe.bbox, person.bbox)
-            if score >= best_score:
+            if score > best_score or (
+                best_person_index is None and score >= best_score
+            ):
                 best_score = score
-                best_person = person
+                best_person_index = person_index
 
-        if best_person is None:
+        if best_person_index is None:
             unassociated.append(ppe)
             continue
 
-        compliance = compliance_by_person[best_person.track_id]
         ppe_type = POSITIVE_PPE.get(ppe.class_name) or NEGATIVE_PPE.get(ppe.class_name)
         if ppe_type is None:
             unassociated.append(ppe)
             continue
 
         if ppe.class_name in POSITIVE_PPE:
-            compliance.items[ppe_type] = "yes"
-            compliance.positive_detections.append(ppe)
+            candidates[best_person_index][ppe_type]["positive"].append(ppe)
         else:
-            # A positive detection takes precedence over a negative one if both
-            # are associated with the same person.
-            if compliance.items.get(ppe_type) != "yes":
-                compliance.items[ppe_type] = "no"
-            compliance.negative_detections.append(ppe)
+            candidates[best_person_index][ppe_type]["negative"].append(ppe)
 
-    return list(compliance_by_person.values()), unassociated
+    # Resolve every person/PPE pair once, independently of detector output order.
+    # Positive evidence is conservative: it prevents a contradictory negative
+    # classifier box from producing a false safety event. Repeated detections for
+    # the same PPE type are represented by the highest-confidence box only.
+    for record, by_type in zip(records, candidates, strict=True):
+        for ppe_type in PPE_TYPES:
+            positive = sorted(
+                by_type[ppe_type]["positive"],
+                key=lambda detection: detection.confidence,
+                reverse=True,
+            )
+            negative = sorted(
+                by_type[ppe_type]["negative"],
+                key=lambda detection: detection.confidence,
+                reverse=True,
+            )
+            if positive:
+                record.items[ppe_type] = "yes"
+                record.positive_detections.append(positive[0])
+                record.conflicting_detections.extend(negative)
+            elif negative:
+                record.items[ppe_type] = "no"
+                record.negative_detections.append(negative[0])
+
+    return records, unassociated

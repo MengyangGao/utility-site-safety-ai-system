@@ -1,12 +1,13 @@
-"""Generate sample videos and matching zone configs for the v0.2 portfolio demo.
+"""Generate derived demo videos without mutating committed release assets.
 
-The script assumes the CC0 sample images have already been downloaded into
-``examples/sample_images/``. It writes a tailored zone YAML file and a short
-Ken-Burns-style panning video for the construction-zone image.
+The script reads provenance-tracked source images from ``examples/`` and writes
+derived files below ``outputs/generated_demo_assets`` by default. Committed
+example hashes therefore remain stable across OpenCV/codec versions.
 """
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 import cv2
@@ -14,9 +15,6 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_IMAGES = REPO_ROOT / "examples" / "sample_images"
-SAMPLE_VIDEOS = REPO_ROOT / "examples" / "sample_videos"
-SAMPLE_ZONES = REPO_ROOT / "examples" / "sample_zones.yaml"
-
 DEMO_IMAGE = SAMPLE_IMAGES / "construction_zone_01.jpg"
 
 
@@ -64,6 +62,8 @@ def _create_ken_burns_video(
     frame_count = int(duration * fps)
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
+    if not writer.isOpened():
+        raise RuntimeError(f"Could not create video writer: {output_path}")
 
     for i in range(frame_count):
         t = i / max(1, frame_count - 1)
@@ -81,6 +81,8 @@ def _create_ken_burns_video(
         writer.write(frame)
 
     writer.release()
+    if not output_path.is_file() or output_path.stat().st_size == 0:
+        raise RuntimeError(f"Generated video is empty: {output_path}")
 
 
 def _create_vertical_pan_video(
@@ -99,6 +101,8 @@ def _create_vertical_pan_video(
     frame_count = int(duration * fps)
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(str(output_path), fourcc, fps, (width, viewport_height))
+    if not writer.isOpened():
+        raise RuntimeError(f"Could not create video writer: {output_path}")
 
     for i in range(frame_count):
         t = i / max(1, frame_count - 1)
@@ -107,33 +111,46 @@ def _create_vertical_pan_video(
         writer.write(image[y1:y2, 0:width])
 
     writer.release()
+    if not output_path.is_file() or output_path.stat().st_size == 0:
+        raise RuntimeError(f"Generated video is empty: {output_path}")
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=REPO_ROOT / "outputs" / "generated_demo_assets",
+        help="Generated artifact directory (default: outputs/generated_demo_assets).",
+    )
+    args = parser.parse_args()
     if not DEMO_IMAGE.exists():
         raise FileNotFoundError(
             f"Demo image not found: {DEMO_IMAGE}. "
             "Please download CC0 sample images into examples/sample_images/ first."
         )
 
-    SAMPLE_VIDEOS.mkdir(parents=True, exist_ok=True)
+    output_root = args.output
+    videos_dir = output_root / "videos"
+    videos_dir.mkdir(parents=True, exist_ok=True)
 
     # Write matching localized zone configuration.
     image = cv2.imread(str(DEMO_IMAGE))
     height, width = image.shape[:2]
     zones = _make_construction_zones(width, height)
-    SAMPLE_ZONES.write_text(yaml.safe_dump(zones), encoding="utf-8")
-    print(f"Wrote zone config to {SAMPLE_ZONES}")
+    zones_path = output_root / "sample_zones.yaml"
+    zones_path.write_text(yaml.safe_dump(zones), encoding="utf-8")
+    print(f"Wrote zone config to {zones_path}")
 
     # Generate a short surveillance-style panning clip.
-    video_path = SAMPLE_VIDEOS / "construction_site_pan.mp4"
+    video_path = videos_dir / "construction_site_pan.mp4"
     _create_ken_burns_video(DEMO_IMAGE, video_path)
     print(f"Wrote demo video to {video_path}")
 
     # Generate a full-PPE vertical pan clip if the reference image is available.
     ppe_image = SAMPLE_IMAGES / "construction_site_ppe_01.jpg"
     if ppe_image.exists():
-        ppe_video_path = SAMPLE_VIDEOS / "construction_ppe_pan.mp4"
+        ppe_video_path = videos_dir / "construction_ppe_pan.mp4"
         _create_vertical_pan_video(ppe_image, ppe_video_path)
         print(f"Wrote full-PPE demo video to {ppe_video_path}")
 

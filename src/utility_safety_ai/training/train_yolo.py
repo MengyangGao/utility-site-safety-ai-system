@@ -8,6 +8,8 @@ from pathlib import Path
 
 from ultralytics import YOLO
 
+from ..detection.yolo_detector import _auto_device
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,15 +43,28 @@ def train(
     # Otherwise treat it as an Ultralytics dataset name (e.g. "construction-ppe.yaml").
 
     if device is None:
-        try:
-            import torch
+        device = _auto_device()
 
-            device = "mps" if torch.backends.mps.is_available() else "cpu"
-        except Exception:  # pragma: no cover
-            device = "cpu"
+    if kwargs.get("resume") and not Path(model).expanduser().is_file():
+        raise FileNotFoundError(
+            "--resume requires --model to point to an existing interrupted-run checkpoint"
+        )
 
     logger.info("Starting YOLO training: model=%s data=%s epochs=%s device=%s", model, data, epochs, device)
     yolo = YOLO(model)
+    if kwargs.get("resume"):
+        checkpoint = getattr(yolo, "ckpt", None)
+        resumable = (
+            isinstance(checkpoint, dict)
+            and isinstance(checkpoint.get("epoch"), int)
+            and checkpoint["epoch"] >= 0
+            and checkpoint.get("optimizer") is not None
+        )
+        if not resumable:
+            raise ValueError(
+                "--resume requires an unstripped interrupted-run checkpoint with "
+                "epoch and optimizer state; completed best.pt/last.pt exports cannot resume"
+            )
     yolo.train(
         data=str(data),
         epochs=epochs,
@@ -72,7 +87,11 @@ def main() -> None:
     parser.add_argument("--device", default=None)
     parser.add_argument("--project", default="runs/train")
     parser.add_argument("--name", default="ppe")
-    parser.add_argument("--resume", action="store_true", help="Resume from last checkpoint of the named run.")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume state from the existing checkpoint supplied with --model.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)

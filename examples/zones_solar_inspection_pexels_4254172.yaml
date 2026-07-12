@@ -1,0 +1,22 @@
+# Normalized safety zones for solar_inspection_pexels_4254172.jpg.
+# Coordinates are fractions of the source width/height and therefore scale to
+# resized images and video frames.
+zones:
+  - id: energized_array_service_corridor
+    name: Energized Array Service Corridor
+    risk_level: high
+    coordinate_space: normalized
+    polygon:
+      - [0.60, 0.54]
+      - [0.82, 0.54]
+      - [0.81, 0.91]
+      - [0.57, 0.91]
+  - id: low_clearance_cable_route
+    name: Low-clearance Cable Route
+    risk_level: medium
+    coordinate_space: normalized
+    polygon:
+      - [0.53, 0.40]
+      - [0.82, 0.35]
+      - [0.84, 0.55]
+      - [0.56, 0.61]

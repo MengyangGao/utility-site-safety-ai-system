@@ -5,6 +5,9 @@ from __future__ import annotations
 import csv
 import json
 
+import pytest
+
+from utility_safety_ai.events.detection_logger import DetectionLogger
 from utility_safety_ai.events.event import SafetyEvent
 from utility_safety_ai.events.event_logger import EventLogger
 
@@ -57,3 +60,24 @@ def test_logger_appends_multiple_events(tmp_path):
 
     lines = (tmp_path / "events.jsonl").read_text().strip().splitlines()
     assert len(lines) == 2
+
+
+def test_loggers_create_schema_valid_empty_files(tmp_path):
+    EventLogger(tmp_path)
+    DetectionLogger(tmp_path)
+
+    assert (tmp_path / "events.jsonl").read_text() == ""
+    assert (tmp_path / "detections.jsonl").read_text() == ""
+    assert (tmp_path / "events.csv").read_text().startswith("schema_version,")
+    assert (tmp_path / "detections.csv").read_text().startswith("schema_version,")
+
+
+def test_event_logger_propagates_required_write_failure(tmp_path, monkeypatch):
+    logger = EventLogger(tmp_path)
+
+    def fail(_record):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(logger, "_append_csv", fail)
+    with pytest.raises(OSError, match="disk full"):
+        logger.log(_event())

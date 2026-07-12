@@ -8,12 +8,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from ..compliance.compliance_reporter import ComplianceReporter
-from ..compliance.person_ppe_association import associate_ppe_to_persons
 from ..detection.yolo_detector import YoloDetector
-from ..events.detection_logger import DetectionLogger
 from ..events.event import SafetyEvent
-from ..events.event_logger import EventLogger
 from ..events.summary import write_summary
 from ..privacy.face_blur import blur_faces
 from ..rules.rule_engine import RuleEngine
@@ -21,6 +17,14 @@ from ..tracking.simple_tracker import SimpleTracker
 from ..utils.paths import OutputPaths
 from ..visualization.annotator import annotate_image
 from ..zones.zone import Zone
+from ._artifacts import (
+    RunArtifacts,
+    checked_imwrite,
+    detector_manifest,
+    file_source_integrity,
+    redact_source,
+    zones_manifest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,120 +36,107 @@ def run_image_pipeline(
     zones: list[Zone],
     rule_engine: RuleEngine | None = None,
     blur_faces_enabled: bool = False,
+    *,
+    run_id: str | None = None,
+    overwrite: bool = False,
+    audit_source: str | None = None,
 ) -> tuple[np.ndarray, list[SafetyEvent]]:
-    """Run inference on a single image and persist outputs.
+    """Run image inference and persist an immutable, auditable run.
 
-    Args:
-        source_path: Path to the input image.
-        output_root: Directory where outputs are written.
-        detector: Initialized YOLO detector.
-        zones: Restricted zones to check.
-        rule_engine: Rule engine instance. If None, a default engine is used.
-        blur_faces_enabled: Whether to blur privacy-sensitive regions.
-
-    Returns:
-        Annotated image and list of emitted safety events.
+    Input decoding is validated before any output directory is created. Results
+    are stored beneath ``<output_root>/runs/<run_id>``; successful completion
+    updates ``<output_root>/latest.json``.
     """
     source_path = Path(source_path)
-    output_paths = OutputPaths(output_root)
-    output_paths.ensure_directories()
-    output_paths.reset_logs()
-
+    if not source_path.is_file():
+        raise FileNotFoundError(f"Image source not found: {source_path}")
     image = cv2.imread(str(source_path))
-    if image is None:
-        raise ValueError(f"Could not read image: {source_path}")
-
-    detections = detector.predict(image)
-    # Assign stable IDs for single-image analysis so summaries can count persons.
-    tracker = SimpleTracker(iou_threshold=0.1)
-    detections = tracker.update(detections)
-
-    # Apply privacy blur on a copy so the original frame stays available for
-    # internal debugging / audit if ever needed.
-    display_image = blur_faces(image.copy(), detections, enabled=blur_faces_enabled)
+    if image is None or image.size == 0:
+        raise ValueError(f"Could not decode image: {source_path}")
 
     engine = rule_engine or RuleEngine(zones=zones)
-    shared_metadata = {
-        "confidence_threshold": detector.conf,
-        "privacy_blur_enabled": blur_faces_enabled,
-    }
-    events = engine.evaluate(
-        detections,
+    output_paths = OutputPaths(output_root, run_id=run_id, overwrite=overwrite)
+    safe_source = redact_source(
+        audit_source if audit_source is not None else source_path,
+        portable_local=True,
+    )
+    output_paths.start_manifest(
         source_type="image",
-        source_path=str(source_path),
-        metadata=shared_metadata,
+        source=safe_source,
+        model=detector_manifest(detector),
+        source_integrity=file_source_integrity(source_path),
+        config={
+            "privacy_blur_enabled": blur_faces_enabled,
+            "zones": zones_manifest(zones),
+            "rule_engine": {
+                "cooldown_seconds": engine.cooldown_seconds,
+                "rules_config": engine.rules_config,
+            },
+        },
     )
 
-    annotated = annotate_image(display_image, zones, detections, events)
-    out_image_path = output_paths.images / source_path.name
-    cv2.imwrite(str(out_image_path), annotated)
-    logger.info("Saved annotated image to %s", out_image_path)
+    try:
+        artifacts = RunArtifacts(output_paths)
+        reset_tracking = getattr(detector, "reset_tracking", None)
+        if callable(reset_tracking):
+            reset_tracking()
+        detections = detector.predict(image)
+        # Assign stable IDs so person-level compliance and summaries are useful.
+        detections = SimpleTracker(iou_threshold=0.1).update(detections)
+        display_image = blur_faces(image.copy(), detections, enabled=blur_faces_enabled)
 
-    event_logger = EventLogger(output_paths.events)
-    compliance_reporter = ComplianceReporter(output_paths.events)
-    detection_logger = DetectionLogger(output_paths.events)
+        engine.reset()
+        shared_metadata = {
+            "run_id": output_paths.run_id,
+            "confidence_threshold": getattr(detector, "conf", None),
+            "privacy_blur_enabled": blur_faces_enabled,
+            "frame_size": (image.shape[1], image.shape[0]),
+        }
+        evaluation = engine.evaluate_frame(
+            detections,
+            source_type="image",
+            source_path=safe_source,
+            metadata=shared_metadata,
+        )
+        annotated = annotate_image(
+            display_image,
+            zones,
+            detections,
+            evaluation.active_findings,
+        )
 
-    compliance_records, _ = associate_ppe_to_persons(detections)
-    compliance_reporter.write(compliance_records)
+        suffix = source_path.suffix if source_path.suffix.lower() in {".jpg", ".jpeg", ".png"} else ".jpg"
+        out_image_path = output_paths.images / f"{source_path.stem}_annotated{suffix}"
+        checked_imwrite(out_image_path, annotated)
 
-    updated_events: list[SafetyEvent] = []
-    for event in events:
-        snapshot_path = _save_snapshot(display_image, event, output_paths.snapshots)
-        if snapshot_path:
-            event = SafetyEvent(
-                event_id=event.event_id,
-                timestamp=event.timestamp,
-                source_type=event.source_type,
-                source_path=event.source_path,
-                frame_index=event.frame_index,
-                time_seconds=event.time_seconds,
-                risk_level=event.risk_level,
-                event_type=event.event_type,
-                description=event.description,
-                person_track_id=event.person_track_id,
-                bbox=event.bbox,
-                zone_id=event.zone_id,
-                zone_name=event.zone_name,
-                snapshot_path=str(snapshot_path),
-                metadata=event.metadata,
-            )
-        updated_events.append(event)
-
-    event_logger.log_all(updated_events)
-    write_summary(updated_events, output_paths.events)
-
-    detection_logger.log_all(
-        detections,
-        source_type="image",
-        source_path=str(source_path),
-        metadata=shared_metadata,
-    )
+        updated_events = artifacts.persist_frame(
+            display_image,
+            detections,
+            evaluation.new_events,
+            source_type="image",
+            source_path=safe_source,
+            metadata=shared_metadata,
+        )
+        write_summary(updated_events, output_paths.events)
+        output_paths.complete_manifest(
+            metrics={
+                "frames_processed": 1,
+                "detections": len(detections),
+                "events": len(updated_events),
+            }
+        )
+    except BaseException as exc:
+        try:
+            output_paths.fail_manifest(exc)
+        except Exception:
+            logger.exception("Failed to record failed-run manifest for %s", output_paths.run_id)
+        raise
 
     logger.info(
-        "Event summary: %d event(s), %d zone intrusion(s), %d PPE violation(s), %d detection(s)",
+        "Completed image run %s at %s: %d event(s), %d detection(s)",
+        output_paths.run_id,
+        output_paths.published_root,
         len(updated_events),
-        sum(1 for e in updated_events if e.event_type == "zone_intrusion"),
-        sum(1 for e in updated_events if e.event_type.startswith("missing_")),
         len(detections),
     )
-
     return annotated, updated_events
-
-
-def _save_snapshot(
-    image: np.ndarray,
-    event: SafetyEvent,
-    snapshots_dir: Path,
-) -> Path | None:
-    if event.bbox is None:
-        return None
-    x1, y1, x2, y2 = map(int, event.bbox)
-    h, w = image.shape[:2]
-    x1, y1 = max(0, x1), max(0, y1)
-    x2, y2 = min(w, x2), min(h, y2)
-    if x2 <= x1 or y2 <= y1:
-        return None
-    crop = image[y1:y2, x1:x2]
-    snapshot_path = snapshots_dir / f"{event.event_id}.jpg"
-    cv2.imwrite(str(snapshot_path), crop)
-    return snapshot_path

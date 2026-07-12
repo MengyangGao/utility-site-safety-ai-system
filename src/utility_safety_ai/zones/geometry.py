@@ -61,3 +61,19 @@ def bottom_center(bbox: tuple[float, float, float, float]) -> tuple[float, float
     """Return the bottom-center point of a bounding box."""
     x1, y1, x2, y2 = bbox
     return ((x1 + x2) / 2.0, y2)
+
+
+def scale_polygon(
+    polygon: list[tuple[float, float]],
+    frame_size: tuple[float, float],
+) -> list[tuple[float, float]]:
+    """Scale a normalized polygon to pixel coordinates.
+
+    Args:
+        polygon: Points whose x/y values are expressed from 0 through 1.
+        frame_size: ``(width, height)`` of the image or video frame.
+    """
+    width, height = frame_size
+    if width <= 0 or height <= 0:
+        raise ValueError("frame_size width and height must be positive")
+    return [(x * width, y * height) for x, y in polygon]

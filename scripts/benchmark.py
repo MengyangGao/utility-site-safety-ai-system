@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
+import platform
 import time
 from pathlib import Path
 
@@ -15,7 +17,19 @@ logger = logging.getLogger(__name__)
 
 
 def _synthetic_frame(width: int = 640, height: int = 640) -> np.ndarray:
-    return np.random.randint(0, 255, (height, width, 3), dtype=np.uint8)
+    rng = np.random.default_rng(42)
+    return rng.integers(0, 256, (height, width, 3), dtype=np.uint8)
+
+
+def _sha256(path: str | Path) -> str | None:
+    model_path = Path(path)
+    if not model_path.is_file():
+        return None
+    digest = hashlib.sha256()
+    with model_path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def benchmark(
@@ -26,6 +40,9 @@ def benchmark(
     image_size: int = 640,
 ) -> dict:
     """Run a simple FPS benchmark for the supplied model and device."""
+    import torch
+    import ultralytics
+
     from utility_safety_ai.detection.yolo_detector import YoloDetector
 
     detector = YoloDetector(model_path=model_path, device=device, conf=0.25, iou=0.45)
@@ -45,12 +62,20 @@ def benchmark(
     ms_per_frame = (elapsed / iterations) * 1000
     return {
         "model": str(model_path),
+        "model_sha256": _sha256(model_path),
         "device": device,
         "image_size": image_size,
+        "input": "deterministic synthetic RGB noise (seed=42)",
+        "warmup_iterations": warmup,
         "iterations": iterations,
         "total_seconds": round(elapsed, 3),
         "fps": round(fps, 2),
         "ms_per_frame": round(ms_per_frame, 2),
+        "python": platform.python_version(),
+        "platform": platform.platform(),
+        "torch": torch.__version__,
+        "ultralytics": ultralytics.__version__,
+        "scope": "detector.predict only; excludes decode, tracking, rules, annotation, and I/O",
     }
 
 

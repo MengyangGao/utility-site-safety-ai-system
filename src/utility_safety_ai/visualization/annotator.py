@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
@@ -35,6 +36,7 @@ NEGATIVE_PPE_COLORS = {
     "no_goggles": (0, 0, 230),
     "no_goggle": (0, 0, 230),
 }
+ANNOTATED_CLASSES = {"person", *POSITIVE_PPE_COLORS, *NEGATIVE_PPE_COLORS}
 
 # Fonts that commonly cover Latin and CJK glyphs on different platforms.
 _FONT_CANDIDATES = [
@@ -55,6 +57,65 @@ _FONT_CANDIDATES = [
 ]
 
 _PIL_FONT_CACHE: dict[int, ImageFont.FreeTypeFont | None] = {}
+
+
+@dataclass(frozen=True)
+class _PILTextOperation:
+    text: str
+    x: int
+    baseline_y: int
+    color: tuple[int, int, int]
+    font: ImageFont.FreeTypeFont
+
+
+class _TextRenderer:
+    """Batch PIL text so a frame crosses the BGR/RGB boundary only once."""
+
+    def __init__(self) -> None:
+        self._pil_operations: list[_PILTextOperation] = []
+
+    def draw(
+        self,
+        image: np.ndarray,
+        text: str,
+        x: int,
+        y: int,
+        color: tuple[int, int, int],
+        font_scale: float,
+    ) -> None:
+        if _needs_pil(text):
+            font = _load_pil_font(_pil_font_size(font_scale))
+            if font is not None:
+                self._pil_operations.append(
+                    _PILTextOperation(text, x, y, color, font)
+                )
+                return
+        cv2.putText(
+            image,
+            text,
+            (x, y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            font_scale,
+            color,
+            1,
+        )
+
+    def flush(self, image: np.ndarray) -> None:
+        """Render every queued PIL label with one conversion in each direction."""
+        if not self._pil_operations:
+            return
+        pil_image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        draw = ImageDraw.Draw(pil_image)
+        for operation in self._pil_operations:
+            _, _, _, bottom = operation.font.getbbox(operation.text)
+            draw.text(
+                (operation.x, operation.baseline_y - bottom),
+                operation.text,
+                font=operation.font,
+                fill=_bgr_to_rgb(operation.color),
+            )
+        image[:] = cv2.cvtColor(np.asarray(pil_image), cv2.COLOR_RGB2BGR)
+        self._pil_operations.clear()
 
 
 def _load_pil_font(size: int) -> ImageFont.FreeTypeFont | None:
@@ -107,21 +168,13 @@ def _draw_text(
     y: int,
     color: tuple[int, int, int],
     font_scale: float = 0.5,
+    text_renderer: _TextRenderer | None = None,
 ) -> None:
     """Draw text with the renderer that supports the current language."""
-    if _needs_pil(text):
-        font = _load_pil_font(_pil_font_size(font_scale))
-        if font is not None:
-            # OpenCV stores images as BGR, but PIL expects RGB.
-            rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            pil_image = Image.fromarray(rgb)
-            draw = ImageDraw.Draw(pil_image)
-            _, top, _, bottom = font.getbbox(text)
-            # y is treated as the text baseline; draw so the baseline aligns.
-            draw.text((x, y - bottom), text, font=font, fill=_bgr_to_rgb(color))
-            image[:] = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
-            return
-    cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, 1)
+    renderer = text_renderer or _TextRenderer()
+    renderer.draw(image, text, x, y, color, font_scale)
+    if text_renderer is None:
+        renderer.flush(image)
 
 
 def annotate_image(
@@ -132,17 +185,29 @@ def annotate_image(
 ) -> np.ndarray:
     """Draw zones, detections, and an event summary on a copy of the image."""
     canvas = image.copy()
-    draw_zones(canvas, zones)
-    draw_detections(canvas, detections)
-    draw_event_summary(canvas, events)
+    text_renderer = _TextRenderer()
+    draw_zones(canvas, zones, text_renderer=text_renderer)
+    draw_detections(canvas, detections, text_renderer=text_renderer)
+    draw_event_summary(canvas, events, text_renderer=text_renderer)
+    text_renderer.flush(canvas)
     return canvas
 
 
-def draw_zones(image: np.ndarray, zones: list[Zone]) -> None:
+def draw_zones(
+    image: np.ndarray,
+    zones: list[Zone],
+    *,
+    text_renderer: _TextRenderer | None = None,
+) -> None:
     """Render subtle restricted-zone overlays with readable labels."""
+    if not zones:
+        return
+    renderer = text_renderer or _TextRenderer()
     overlay = image.copy()
+    height, width = image.shape[:2]
     for zone in zones:
-        pts = np.array([[int(x), int(y)] for x, y in zone.polygon], np.int32)
+        polygon = zone.resolved_polygon((width, height))
+        pts = np.array([[int(x), int(y)] for x, y in polygon], np.int32)
         if pts.size == 0:
             continue
         pts = pts.reshape((-1, 1, 2))
@@ -151,15 +216,36 @@ def draw_zones(image: np.ndarray, zones: list[Zone]) -> None:
         cv2.fillPoly(overlay, [pts], color)
         label = f"{zone.name} ({risk_label(zone.risk_level)})"
         tx, ty = int(pts[0][0][0]), int(pts[0][0][1]) - 6
-        _draw_zone_label(image, label, tx, ty, color, font_scale=0.45)
+        _draw_zone_label(
+            image,
+            label,
+            tx,
+            ty,
+            color,
+            font_scale=0.45,
+            text_renderer=renderer,
+        )
     # Blend overlay for a subtle fill.
     cv2.addWeighted(overlay, 0.18, image, 0.82, 0, image)
+    if text_renderer is None:
+        renderer.flush(image)
 
 
-def draw_detections(image: np.ndarray, detections: list[Detection]) -> None:
+def draw_detections(
+    image: np.ndarray,
+    detections: list[Detection],
+    *,
+    text_renderer: _TextRenderer | None = None,
+) -> None:
     """Render bounding boxes and class labels with simple label de-cluttering."""
+    renderer = text_renderer or _TextRenderer()
     occupied: list[tuple[int, int, int, int]] = []
     for det in detections:
+        # General COCO checkpoints may also return benches, vehicles, bags,
+        # etc. Keep those records in the detection audit log, but do not let
+        # unrelated classes clutter the safety review overlay.
+        if det.class_name not in ANNOTATED_CLASSES:
+            continue
         x1, y1, x2, y2 = map(int, det.bbox)
         color = _detection_color(det.class_name)
         cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
@@ -184,18 +270,33 @@ def draw_detections(image: np.ndarray, detections: list[Detection]) -> None:
             attempts += 1
 
         occupied.append(label_rect)
-        _draw_label(image, label, tx, ty, color, font_scale=0.45)
+        _draw_label(
+            image,
+            label,
+            tx,
+            ty,
+            color,
+            font_scale=0.45,
+            text_renderer=renderer,
+        )
 
         if det.class_name == "person":
             bx, by = int((x1 + x2) / 2), y2
             cv2.circle(image, (bx, by), 4, (0, 0, 255), -1)
+    if text_renderer is None:
+        renderer.flush(image)
 
 
 def _rects_intersect(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
     return not (a[2] < b[0] or a[0] > b[2] or a[3] < b[1] or a[1] > b[3])
 
 
-def draw_event_summary(image: np.ndarray, events: list[SafetyEvent]) -> None:
+def draw_event_summary(
+    image: np.ndarray,
+    events: list[SafetyEvent],
+    *,
+    text_renderer: _TextRenderer | None = None,
+) -> None:
     """Draw a compact top-right risk summary panel with high contrast."""
     if not events:
         return
@@ -230,12 +331,13 @@ def draw_event_summary(image: np.ndarray, events: list[SafetyEvent]) -> None:
     x2 = min(w, x1 + panel_w)
     y2 = min(h, y1 + panel_h)
 
-    # Opaque dark background with a thin border.
-    overlay = image.copy()
-    cv2.rectangle(overlay, (x1, y1), (x2, y2), (20, 20, 20), -1)
-    cv2.addWeighted(overlay, 0.90, image, 0.10, 0, image)
+    # Blend only the small panel ROI instead of copying/converting a full frame.
+    panel = image[y1 : y2 + 1, x1 : x2 + 1]
+    dark_background = np.full_like(panel, 20)
+    cv2.addWeighted(dark_background, 0.90, panel, 0.10, 0, panel)
     cv2.rectangle(image, (x1, y1), (x2, y2), (180, 180, 180), 1)
 
+    renderer = text_renderer or _TextRenderer()
     # Title.
     _draw_text(
         image,
@@ -244,6 +346,7 @@ def draw_event_summary(image: np.ndarray, events: list[SafetyEvent]) -> None:
         y1 + title_height - 6,
         (255, 255, 255),
         font_scale=0.55,
+        text_renderer=renderer,
     )
 
     y = y1 + title_height + line_height - 4
@@ -258,8 +361,11 @@ def draw_event_summary(image: np.ndarray, events: list[SafetyEvent]) -> None:
             y,
             (255, 255, 255),
             font_scale=0.55,
+            text_renderer=renderer,
         )
         y += line_height
+    if text_renderer is None:
+        renderer.flush(image)
 
 
 def _detection_color(class_name: str) -> tuple[int, int, int]:
@@ -279,13 +385,22 @@ def _draw_label(
     y: int,
     color: tuple[int, int, int],
     font_scale: float = 0.5,
+    text_renderer: _TextRenderer | None = None,
 ) -> None:
     """Draw text with a small contrasting background."""
     tw, th = _text_size(text, font_scale)
     tx = max(4, x)
     ty = max(th + 6, y)
     cv2.rectangle(image, (tx, ty - th - 5), (tx + tw + 4, ty + 2), color, -1)
-    _draw_text(image, text, tx + 2, ty, (255, 255, 255), font_scale)
+    _draw_text(
+        image,
+        text,
+        tx + 2,
+        ty,
+        (255, 255, 255),
+        font_scale,
+        text_renderer,
+    )
 
 
 def _draw_zone_label(
@@ -295,6 +410,7 @@ def _draw_zone_label(
     y: int,
     color: tuple[int, int, int],
     font_scale: float = 0.5,
+    text_renderer: _TextRenderer | None = None,
 ) -> None:
     """Draw a zone label with a dark background for readability over bright fills."""
     tw, th = _text_size(text, font_scale)
@@ -303,4 +419,12 @@ def _draw_zone_label(
     # Dark background with a colored left strip.
     cv2.rectangle(image, (tx, ty - th - 5), (tx + tw + 6, ty + 2), (20, 20, 20), -1)
     cv2.rectangle(image, (tx, ty - th - 5), (tx + 4, ty + 2), color, -1)
-    _draw_text(image, text, tx + 6, ty, (255, 255, 255), font_scale)
+    _draw_text(
+        image,
+        text,
+        tx + 6,
+        ty,
+        (255, 255, 255),
+        font_scale,
+        text_renderer,
+    )

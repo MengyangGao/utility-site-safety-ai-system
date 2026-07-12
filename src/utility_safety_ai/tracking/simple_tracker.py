@@ -30,6 +30,14 @@ class SimpleTracker:
     """
 
     def __init__(self, iou_threshold: float = 0.3, max_age: int = 5) -> None:
+        if (
+            isinstance(iou_threshold, bool)
+            or not isinstance(iou_threshold, (int, float))
+            or not 0.0 <= iou_threshold <= 1.0
+        ):
+            raise ValueError("iou_threshold must be between 0 and 1")
+        if isinstance(max_age, bool) or not isinstance(max_age, int) or max_age < 1:
+            raise ValueError("max_age must be a positive integer")
         self.iou_threshold = iou_threshold
         self.max_age = max_age
         self._tracks: dict[int, tuple[tuple[float, float, float, float], int]] = {}
@@ -47,16 +55,31 @@ class SimpleTracker:
         new_tracks: dict[int, tuple[tuple[float, float, float, float], int]] = {}
         person_to_tid: dict[int, int] = {}
         used: set[int] = set()
+        used_track_ids: set[int] = set()
+
+        # Respect IDs supplied by an upstream tracker when a frame contains a
+        # mix of tracked and untracked detections. The fallback fills only gaps.
+        for idx, det in enumerate(person_dets):
+            if det.track_id is None:
+                continue
+            tid = det.track_id
+            new_tracks[tid] = (det.bbox, 0)
+            person_to_tid[idx] = tid
+            used.add(idx)
+            used_track_ids.add(tid)
+            self._next_id = max(self._next_id, tid + 1)
 
         # Greedy best-IoU matching between current tracks and new person detections.
         for tid, (last_bbox, age) in self._tracks.items():
+            if tid in used_track_ids:
+                continue
             best_iou = self.iou_threshold
             best_idx = -1
             for idx, det in enumerate(person_dets):
                 if idx in used:
                     continue
                 score = _iou(last_bbox, det.bbox)
-                if score > best_iou:
+                if score >= best_iou:
                     best_iou = score
                     best_idx = idx
 
@@ -65,7 +88,7 @@ class SimpleTracker:
                 new_tracks[tid] = (det.bbox, 0)
                 person_to_tid[best_idx] = tid
                 used.add(best_idx)
-            elif age + 1 < self.max_age:
+            elif age + 1 <= self.max_age:
                 # Keep the old track alive briefly for missed detections.
                 new_tracks[tid] = (last_bbox, age + 1)
 
@@ -97,8 +120,22 @@ class SimpleTracker:
         return matched_detections
 
     def reset(self) -> None:
+        """Start a new run with no IDs or retained tracks."""
         self._tracks.clear()
         self._next_id = 1
+
+    def advance(self) -> None:
+        """Age tracks by one empty frame.
+
+        Pipelines should call this (or ``update([])``) when a detector returns no
+        boxes; otherwise stale fallback tracks never expire during blank frames.
+        """
+        self.update([])
+
+    @property
+    def active_track_count(self) -> int:
+        """Number of live tracks, including temporarily missed people."""
+        return len(self._tracks)
 
 
 def track_detections(detections: Iterable[Detection], tracker: SimpleTracker) -> list[Detection]:

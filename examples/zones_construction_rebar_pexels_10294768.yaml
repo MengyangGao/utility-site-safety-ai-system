@@ -1,0 +1,20 @@
+# Normalized restricted zones for construction_rebar_pexels_10294768.mp4.
+zones:
+  - id: exposed_rebar_work_area
+    name: Exposed Rebar Work Area
+    risk_level: high
+    coordinate_space: normalized
+    polygon:
+      - [0.35, 0.44]
+      - [1.00, 0.42]
+      - [1.00, 1.00]
+      - [0.31, 1.00]
+  - id: formwork_access_lane
+    name: Formwork Access Lane
+    risk_level: medium
+    coordinate_space: normalized
+    polygon:
+      - [0.00, 0.38]
+      - [0.34, 0.36]
+      - [0.31, 1.00]
+      - [0.00, 1.00]

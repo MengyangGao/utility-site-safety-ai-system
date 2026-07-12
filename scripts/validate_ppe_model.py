@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import importlib.util
 import json
 import logging
+import platform
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 
 logging.basicConfig(level=logging.INFO)
@@ -23,14 +27,16 @@ def validate(
       - metrics.json with per-class precision/recall/mAP50/mAP50-95
       - confusion_matrix.png and confusion_matrix_normalized.png
       - PR_curve.png and F1_curve.png
-      - A gallery of validation predictions (best and worst per class)
+      - Validation-batch label/prediction comparison images
 
     Args:
         model_path: Path to the trained model weights.
         output_dir: Directory where validation artifacts are saved.
         data: Ultralytics dataset YAML or dataset name.
     """
+    import torch
     from ultralytics import YOLO
+    from ultralytics import __version__ as ultralytics_version
 
     model_path = Path(model_path)
     if not model_path.exists():
@@ -40,12 +46,18 @@ def validate(
         )
 
     model = YOLO(str(model_path))
+    save_json = importlib.util.find_spec("pycocotools") is not None
+    if not save_json:
+        logger.info(
+            "pycocotools is not installed; continuing without COCO JSON export. "
+            "Metric computation and validation plots are unaffected."
+        )
     metrics = model.val(
         data=data,
         verbose=False,
         plots=True,
         save=True,
-        save_json=True,
+        save_json=save_json,
     )
 
     # Build a serialisable per-class report.
@@ -60,7 +72,19 @@ def validate(
         }
 
     report = {
+        "schema_version": "1.0",
+        "evaluated_at": datetime.now(timezone.utc).isoformat(),
         "model": str(model_path),
+        "model_sha256": hashlib.sha256(model_path.read_bytes()).hexdigest(),
+        "data": data,
+        "split": "val",
+        "environment": {
+            "python": platform.python_version(),
+            "platform": platform.platform(),
+            "torch": torch.__version__,
+            "ultralytics": ultralytics_version,
+            "device": str(getattr(model, "device", "auto")),
+        },
         "map50": round(float(metrics.box.map50), 4),
         "map50_95": round(float(metrics.box.map), 4),
         "precision": round(float(metrics.box.mp), 4),

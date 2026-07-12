@@ -8,12 +8,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from ..compliance.compliance_reporter import ComplianceReporter
-from ..compliance.person_ppe_association import associate_ppe_to_persons
 from ..detection.yolo_detector import YoloDetector
-from ..events.detection_logger import DetectionLogger
 from ..events.event import SafetyEvent
-from ..events.event_logger import EventLogger
 from ..events.summary import write_summary
 from ..privacy.face_blur import blur_faces
 from ..rules.rule_engine import RuleEngine
@@ -21,6 +17,15 @@ from ..tracking.simple_tracker import SimpleTracker
 from ..utils.paths import OutputPaths
 from ..visualization.annotator import annotate_image
 from ..zones.zone import Zone
+from ._artifacts import (
+    RunArtifacts,
+    detector_manifest,
+    file_source_integrity,
+    open_video_writer,
+    redact_source,
+    validate_video_output,
+    zones_manifest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,159 +38,159 @@ def run_video_pipeline(
     rule_engine: RuleEngine | None = None,
     blur_faces_enabled: bool = False,
     max_frames: int | None = None,
+    *,
+    run_id: str | None = None,
+    overwrite: bool = False,
+    audit_source: str | None = None,
 ) -> list[SafetyEvent]:
-    """Run inference on a video file and persist outputs.
-
-    Args:
-        source_path: Path to the input video.
-        output_root: Directory where outputs are written.
-        detector: Initialized YOLO detector.
-        zones: Restricted zones to check.
-        rule_engine: Rule engine instance. If None, a default engine is used.
-        blur_faces_enabled: Whether to blur privacy-sensitive regions.
-        max_frames: Optional frame limit for testing/demo purposes.
-
-    Returns:
-        List of all emitted safety events.
-    """
+    """Run inference on a video and persist an immutable, auditable run."""
     source_path = Path(source_path)
-    output_paths = OutputPaths(output_root)
-    output_paths.ensure_directories()
-    output_paths.reset_logs()
+    if not source_path.is_file():
+        raise FileNotFoundError(f"Video source not found: {source_path}")
+    if max_frames is not None and max_frames <= 0:
+        raise ValueError("max_frames must be greater than zero")
 
+    # Decode one frame before creating outputs. A corrupt/empty input therefore
+    # cannot delete or publish misleading audit artifacts.
     cap = cv2.VideoCapture(str(source_path))
     if not cap.isOpened():
+        cap.release()
         raise ValueError(f"Could not open video: {source_path}")
+    first_ok, first_frame = cap.read()
+    if not first_ok or first_frame is None or first_frame.size == 0:
+        cap.release()
+        raise ValueError(f"Video contains no decodable frames: {source_path}")
 
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    if max_frames is not None:
-        total_frames = min(total_frames, max_frames)
-
-    out_video_path = output_paths.videos / source_path.name
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(str(out_video_path), fourcc, fps, (width, height))
+    fps = float(cap.get(cv2.CAP_PROP_FPS))
+    if not 0.1 <= fps <= 240.0:
+        fps = 30.0
+    height, width = first_frame.shape[:2]
 
     engine = rule_engine or RuleEngine(zones=zones)
-    event_logger = EventLogger(output_paths.events)
-    detection_logger = DetectionLogger(output_paths.events)
-    compliance_reporter = ComplianceReporter(output_paths.events)
-    fallback_tracker = SimpleTracker()
+    output_paths = OutputPaths(output_root, run_id=run_id, overwrite=overwrite)
+    safe_source = redact_source(
+        audit_source if audit_source is not None else source_path,
+        portable_local=True,
+    )
+    output_paths.start_manifest(
+        source_type="video",
+        source=safe_source,
+        model=detector_manifest(detector),
+        source_integrity=file_source_integrity(source_path),
+        config={
+            "privacy_blur_enabled": blur_faces_enabled,
+            "max_frames": max_frames,
+            "input_fps": fps,
+            "frame_size": [width, height],
+            "zones": zones_manifest(zones),
+            "rule_engine": {
+                "cooldown_seconds": engine.cooldown_seconds,
+                "rules_config": engine.rules_config,
+            },
+        },
+    )
+    out_video_path = output_paths.videos / f"{source_path.stem}_annotated.mp4"
+    writer: cv2.VideoWriter | None = None
     all_events: list[SafetyEvent] = []
     total_detections = 0
     frame_index = 0
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        if max_frames is not None and frame_index >= max_frames:
-            break
-
-        time_seconds = frame_index / fps
-        detections = detector.track(frame)
-
-        # If the model did not provide track IDs, use the simple IoU tracker.
-        if any(d.track_id is None for d in detections):
-            detections = fallback_tracker.update(detections)
-
-        # Apply privacy blur on a copy so the original frame is still available
-        # for internal debugging / audit if ever needed.
-        display_frame = blur_faces(
-            frame.copy(), detections, enabled=blur_faces_enabled
+    try:
+        writer = open_video_writer(
+            out_video_path,
+            fps=fps,
+            frame_size=(width, height),
         )
+        artifacts = RunArtifacts(output_paths)
+        engine.reset()
+        reset_tracking = getattr(detector, "reset_tracking", None)
+        if callable(reset_tracking):
+            reset_tracking()
+        fallback_tracker = SimpleTracker()
         shared_metadata = {
-            "confidence_threshold": detector.conf,
+            "run_id": output_paths.run_id,
+            "confidence_threshold": getattr(detector, "conf", None),
             "fps": fps,
             "privacy_blur_enabled": blur_faces_enabled,
+            "frame_size": (width, height),
         }
 
-        events = engine.evaluate(
-            detections,
-            source_type="video",
-            source_path=str(source_path),
-            frame_index=frame_index,
-            time_seconds=time_seconds,
-            metadata=shared_metadata,
-        )
+        frame: np.ndarray | None = first_frame
+        while frame is not None and (max_frames is None or frame_index < max_frames):
+            time_seconds = frame_index / fps
+            detections = detector.track(frame)
+            detections = fallback_tracker.update(detections)
 
-        annotated = annotate_image(display_frame, zones, detections, events)
-        writer.write(annotated)
-
-        updated_frame_events: list[SafetyEvent] = []
-        for event in events:
-            snapshot_path = _save_snapshot(
-                display_frame, event, output_paths.snapshots
+            display_frame = blur_faces(
+                frame.copy(),
+                detections,
+                enabled=blur_faces_enabled,
             )
-            if snapshot_path:
-                event = SafetyEvent(
-                    event_id=event.event_id,
-                    timestamp=event.timestamp,
-                    source_type=event.source_type,
-                    source_path=event.source_path,
-                    frame_index=event.frame_index,
-                    time_seconds=event.time_seconds,
-                    risk_level=event.risk_level,
-                    event_type=event.event_type,
-                    description=event.description,
-                    person_track_id=event.person_track_id,
-                    bbox=event.bbox,
-                    zone_id=event.zone_id,
-                    zone_name=event.zone_name,
-                    snapshot_path=str(snapshot_path),
-                    metadata=event.metadata,
+            evaluation = engine.evaluate_frame(
+                detections,
+                source_type="video",
+                source_path=safe_source,
+                frame_index=frame_index,
+                time_seconds=time_seconds,
+                metadata=shared_metadata,
+            )
+            annotated = annotate_image(
+                display_frame,
+                zones,
+                detections,
+                evaluation.active_findings,
+            )
+            if annotated.shape[:2] != (height, width):
+                raise ValueError(
+                    f"Annotated frame size changed from {(width, height)} to {(annotated.shape[1], annotated.shape[0])}"
                 )
-            updated_frame_events.append(event)
+            writer.write(annotated)
 
-        compliance_records, _ = associate_ppe_to_persons(detections)
-        compliance_reporter.write(
-            compliance_records, frame_index=frame_index, time_seconds=time_seconds
+            updated_events = artifacts.persist_frame(
+                display_frame,
+                detections,
+                evaluation.new_events,
+                source_type="video",
+                source_path=safe_source,
+                frame_index=frame_index,
+                time_seconds=time_seconds,
+                metadata=shared_metadata,
+            )
+            all_events.extend(updated_events)
+            total_detections += len(detections)
+            frame_index += 1
+
+            ok, next_frame = cap.read()
+            frame = next_frame if ok and next_frame is not None and next_frame.size else None
+
+        writer.release()
+        writer = None
+        cap.release()
+        validate_video_output(out_video_path, expected_frames=frame_index)
+        write_summary(all_events, output_paths.events)
+        output_paths.complete_manifest(
+            metrics={
+                "frames_processed": frame_index,
+                "detections": total_detections,
+                "events": len(all_events),
+            }
         )
+    except BaseException as exc:
+        cap.release()
+        if writer is not None:
+            writer.release()
+        try:
+            output_paths.fail_manifest(exc)
+        except Exception:
+            logger.exception("Failed to record failed-run manifest for %s", output_paths.run_id)
+        raise
 
-        all_events.extend(updated_frame_events)
-        event_logger.log_all(updated_frame_events)
-        detection_logger.log_all(
-            detections,
-            source_type="video",
-            source_path=str(source_path),
-            frame_index=frame_index,
-            time_seconds=time_seconds,
-            metadata=shared_metadata,
-        )
-        total_detections += len(detections)
-
-        frame_index += 1
-
-    cap.release()
-    writer.release()
-    write_summary(all_events, output_paths.events)
     logger.info(
-        "Saved annotated video to %s. Event summary: %d event(s), %d zone intrusion(s), %d PPE violation(s), %d total detection(s)",
-        out_video_path,
+        "Completed video run %s at %s: %d frame(s), %d event(s), %d detection(s)",
+        output_paths.run_id,
+        output_paths.published_root,
+        frame_index,
         len(all_events),
-        sum(1 for e in all_events if e.event_type == "zone_intrusion"),
-        sum(1 for e in all_events if e.event_type.startswith("missing_")),
         total_detections,
     )
     return all_events
-
-
-def _save_snapshot(
-    image: np.ndarray,
-    event: SafetyEvent,
-    snapshots_dir: Path,
-) -> Path | None:
-    if event.bbox is None:
-        return None
-    x1, y1, x2, y2 = map(int, event.bbox)
-    h, w = image.shape[:2]
-    x1, y1 = max(0, x1), max(0, y1)
-    x2, y2 = min(w, x2), min(h, y2)
-    if x2 <= x1 or y2 <= y1:
-        return None
-    crop = image[y1:y2, x1:x2]
-    snapshot_path = snapshots_dir / f"{event.event_id}.jpg"
-    cv2.imwrite(str(snapshot_path), crop)
-    return snapshot_path

@@ -1,0 +1,36 @@
+[
+  {
+    "model": "models/ppe_yolo11n.pt",
+    "model_sha256": "b05d39dba9d9a5a19855b9cc7dc4c613e979a64a280929e593522685c19cefff",
+    "device": "cpu",
+    "image_size": 640,
+    "input": "deterministic synthetic RGB noise (seed=42)",
+    "warmup_iterations": 5,
+    "iterations": 30,
+    "total_seconds": 1.056,
+    "fps": 28.4,
+    "ms_per_frame": 35.21,
+    "python": "3.11.15",
+    "platform": "macOS-15.6.1-arm64-arm-64bit",
+    "torch": "2.13.0",
+    "ultralytics": "8.4.92",
+    "scope": "detector.predict only; excludes decode, tracking, rules, annotation, and I/O"
+  },
+  {
+    "model": "models/ppe_yolo11n.pt",
+    "model_sha256": "b05d39dba9d9a5a19855b9cc7dc4c613e979a64a280929e593522685c19cefff",
+    "device": "mps",
+    "image_size": 640,
+    "input": "deterministic synthetic RGB noise (seed=42)",
+    "warmup_iterations": 5,
+    "iterations": 30,
+    "total_seconds": 0.254,
+    "fps": 117.95,
+    "ms_per_frame": 8.48,
+    "python": "3.11.15",
+    "platform": "macOS-15.6.1-arm64-arm-64bit",
+    "torch": "2.13.0",
+    "ultralytics": "8.4.92",
+    "scope": "detector.predict only; excludes decode, tracking, rules, annotation, and I/O"
+  }
+]

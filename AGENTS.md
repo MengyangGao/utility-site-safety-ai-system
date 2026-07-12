@@ -1,9 +1,17 @@
 AGENTS.md — Utility Site Safety AI System
 
 > This file describes the implementation specification. The repository has been
-> implemented as a v0.4 industrial-deliverable prototype with realistic CC0 construction/utility
-> images, localized hazard zones, event aggregation, and optional custom PPE
-> model training.
+> implemented as a v1.0 release-candidate engineering prototype. The current
+> implementation includes model-aware person/PPE behavior, normalized hazard
+> zones, active-finding/event separation, run-scoped audit artifacts, privacy-first
+> persistence, image/video/camera/RTSP workflows, a session-isolated Streamlit UI,
+> offline end-to-end tests, and optional custom PPE training/validation/export.
+>
+> Current capability boundary: a clean clone with COCO-pretrained `yolo11n.pt`
+> supports person + restricted-zone monitoring. PPE and explicit `no_*` claims
+> require a compatible custom PPE checkpoint. Local PPE metrics may be reported
+> only with the exact checkpoint hash, validation split, environment, and retained
+> raw artifacts; they never transfer automatically to a clean clone or retrained weight.
 
 0. Mission
 
@@ -758,20 +766,45 @@ Run all tests, fix errors, run demo, update README, then report.
 
 12. Definition of Done
 
-The project is considered done only when:
+The v1.0 implementation is considered release-ready only when all of the
+following pass on the final target machine:
 
+```bash
+conda env create -f environment.yml
 conda activate utility-safety-ai
-pytest -q
+pip install -e ".[dev]"
+pip check
+pytest -q --cov=utility_safety_ai --cov-report=term-missing --cov-fail-under=70
+ruff check .
+mypy src/utility_safety_ai
+python -m py_compile app.py
+python -m build
+```
 
-passes, and at least one image or video demo produces:
+At least one clean-clone image demo and one short video demo must complete and
+produce a successful `latest.json` pointer plus a run directory containing:
 
-annotated output
-events.jsonl
-events.csv
-snapshot images
+1. `manifest.json` with `status: completed` and artifact hashes.
+2. Annotated image or video output.
+3. `events.jsonl` and `events.csv` (valid even when empty).
+4. `detections.jsonl` and `detections.csv`.
+5. `compliance.jsonl` and `compliance.csv`.
+6. `summary.json` and `summary.csv`.
+7. Privacy-processed snapshots when an event is emitted.
+8. A failed-run check proving that `latest.json` still points to the last
+   successful run.
+
+The Streamlit app must start headlessly and receive a manual smoke test for
+upload, normalized-zone editing, privacy default, result/history rendering, and
+report download. Any PPE performance claim additionally requires retained model
+hashes, dataset/split metadata, `metrics.json`, curves/confusion matrices, and
+per-class results in `docs/model-card.md`.
 
 Do not skip tests.
 
 Do not skip documentation.
 
 Do not skip acceptance verification.
+
+Do not mark a release complete while `REPORT.md` still contains
+`PENDING_FINAL_VERIFICATION` entries.

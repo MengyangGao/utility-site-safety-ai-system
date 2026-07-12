@@ -13,9 +13,8 @@ from .model_loader import resolve_model_path
 
 logger = logging.getLogger(__name__)
 
-# Per-class confidence floors. A detection is kept when its confidence is
-# at least the class-specific value below, or at least the global ``conf``
-# passed to the detector for classes not listed.
+# Per-class confidence floors. The user-supplied global ``conf`` remains a
+# minimum for every class; listed classes may require a stricter floor.
 DEFAULT_CLASS_CONF: dict[str, float] = {
     "person": 0.30,
     "helmet": 0.35,
@@ -40,6 +39,8 @@ def _auto_device() -> str:
     try:
         import torch
 
+        if torch.cuda.is_available():
+            return "cuda:0"
         if torch.backends.mps.is_available():
             return "mps"
     except Exception:  # pragma: no cover
@@ -63,7 +64,18 @@ class YoloDetector:
         self.device = device or _auto_device()
         self.conf = conf
         self.iou = iou
-        self.class_conf = class_conf or DEFAULT_CLASS_CONF
+        self.class_conf = dict(DEFAULT_CLASS_CONF if class_conf is None else class_conf)
+        thresholds = [self.conf, *self.class_conf.values()]
+        if any(
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not 0.0 <= float(value) <= 1.0
+            for value in thresholds
+        ):
+            raise ValueError("All confidence thresholds must be between 0 and 1")
+        # The global confidence is a true lower bound for every class. Submit it
+        # to Ultralytics, then apply stricter per-class floors below.
+        self.inference_conf = float(self.conf)
         resolved = resolve_model_path(model_path)
         logger.info("Loading YOLO model from %s on device %s", resolved, self.device)
         self.model = YOLO(resolved)
@@ -72,7 +84,7 @@ class YoloDetector:
         """Run detection on a single image/frame."""
         results = self.model(
             image,
-            conf=self.conf,
+            conf=self.inference_conf,
             iou=self.iou,
             device=self.device,
             verbose=False,
@@ -87,7 +99,7 @@ class YoloDetector:
         try:
             results = self.model.track(
                 image,
-                conf=self.conf,
+                conf=self.inference_conf,
                 iou=self.iou,
                 device=self.device,
                 persist=True,
@@ -97,6 +109,19 @@ class YoloDetector:
         except Exception as exc:  # pragma: no cover - defensive fallback
             logger.debug("Tracking failed (%s); falling back to detection.", exc)
             return self.predict(image)
+
+    def reset_tracking(self) -> None:
+        """Discard Ultralytics tracker state before starting a new run."""
+        predictor = getattr(self.model, "predictor", None)
+        trackers = getattr(predictor, "trackers", ()) if predictor is not None else ()
+        for tracker in trackers or ():
+            reset = getattr(tracker, "reset", None)
+            if callable(reset):
+                reset()
+        # Ultralytics constructs a fresh predictor/tracker lazily on the next
+        # call. This also handles versions whose tracker has no public reset().
+        if hasattr(self.model, "predictor"):
+            self.model.predictor = None
 
     def _to_detections(self, result: Any) -> list[Detection]:
         boxes = result.boxes
@@ -115,7 +140,7 @@ class YoloDetector:
             if class_name in IGNORE_CLASSES:
                 continue
 
-            threshold = self.class_conf.get(class_name, self.conf)
+            threshold = max(self.conf, self.class_conf.get(class_name, self.conf))
             if confidence < threshold:
                 continue
 
@@ -131,42 +156,6 @@ class YoloDetector:
                     track_id=track_id,
                 )
             )
-        return self._class_wise_nms(raw)
-
-    def _class_wise_nms(
-        self,
-        detections: list[Detection],
-        iou_threshold: float = 0.35,
-    ) -> list[Detection]:
-        """Suppress near-duplicate boxes of the same class after model NMS.
-
-        Ultralytics NMS can still emit overlapping boxes for heavily-represented
-        classes; this lightweight per-class cleanup keeps annotations tidy.
-        """
-        by_class: dict[str, list[Detection]] = {}
-        for det in detections:
-            by_class.setdefault(det.class_name, []).append(det)
-
-        kept: list[Detection] = []
-        for dets in by_class.values():
-            dets = sorted(dets, key=lambda d: d.confidence, reverse=True)
-            while dets:
-                current = dets.pop(0)
-                kept.append(current)
-                dets = [d for d in dets if _iou(current.bbox, d.bbox) <= iou_threshold]
-        return kept
-
-
-def _iou(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> float:
-    """Compute intersection-over-union of two xyxy boxes."""
-    ax1, ay1, ax2, ay2 = a
-    bx1, by1, bx2, by2 = b
-    inter_x1 = max(ax1, bx1)
-    inter_y1 = max(ay1, by1)
-    inter_x2 = min(ax2, bx2)
-    inter_y2 = min(ay2, by2)
-    inter_area = max(0.0, inter_x2 - inter_x1) * max(0.0, inter_y2 - inter_y1)
-    area_a = (ax2 - ax1) * (ay2 - ay1)
-    area_b = (bx2 - bx1) * (by2 - by1)
-    union = area_a + area_b - inter_area
-    return inter_area / union if union > 0 else 0.0
+        # Ultralytics has already applied NMS. A second low-IoU suppression pass
+        # here can erase nearby workers or separate glove/boot detections.
+        return raw

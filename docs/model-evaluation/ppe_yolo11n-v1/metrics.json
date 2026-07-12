@@ -1,0 +1,87 @@
+{
+  "schema_version": "1.0",
+  "evaluated_at": "2026-07-12T19:48:41.213520+00:00",
+  "model": "models/ppe_yolo11n.pt",
+  "model_sha256": "b05d39dba9d9a5a19855b9cc7dc4c613e979a64a280929e593522685c19cefff",
+  "data": "datasets/data.yaml",
+  "split": "val",
+  "environment": {
+    "python": "3.11.15",
+    "platform": "macOS-15.6.1-arm64-arm-64bit",
+    "torch": "2.13.0",
+    "ultralytics": "8.4.92",
+    "device": "cpu"
+  },
+  "map50": 0.5786,
+  "map50_95": 0.286,
+  "precision": 0.6903,
+  "recall": 0.5515,
+  "per_class": {
+    "helmet": {
+      "precision": 0.7584,
+      "recall": 0.8408,
+      "map50": 0.8448,
+      "map50_95": 0.4464
+    },
+    "gloves": {
+      "precision": 0.8322,
+      "recall": 0.7647,
+      "map50": 0.8184,
+      "map50_95": 0.3719
+    },
+    "vest": {
+      "precision": 0.8007,
+      "recall": 0.8129,
+      "map50": 0.8635,
+      "map50_95": 0.5246
+    },
+    "boots": {
+      "precision": 0.6258,
+      "recall": 0.755,
+      "map50": 0.7672,
+      "map50_95": 0.4472
+    },
+    "goggles": {
+      "precision": 0.7618,
+      "recall": 0.7486,
+      "map50": 0.7748,
+      "map50_95": 0.3713
+    },
+    "none": {
+      "precision": 0.5047,
+      "recall": 0.5926,
+      "map50": 0.5833,
+      "map50_95": 0.2164
+    },
+    "Person": {
+      "precision": 0.7801,
+      "recall": 0.8954,
+      "map50": 0.9026,
+      "map50_95": 0.5332
+    },
+    "no_helmet": {
+      "precision": 0.5591,
+      "recall": 0.3947,
+      "map50": 0.3998,
+      "map50_95": 0.1296
+    },
+    "no_goggle": {
+      "precision": 0.4572,
+      "recall": 0.0732,
+      "map50": 0.1986,
+      "map50_95": 0.0519
+    },
+    "no_gloves": {
+      "precision": 0.5133,
+      "recall": 0.1885,
+      "map50": 0.1835,
+      "map50_95": 0.0436
+    },
+    "no_boots": {
+      "precision": 1.0,
+      "recall": 0.0,
+      "map50": 0.0285,
+      "map50_95": 0.0099
+    }
+  }
+}

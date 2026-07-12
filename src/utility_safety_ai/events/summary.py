@@ -8,6 +8,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from ..utils.paths import OUTPUT_SCHEMA_VERSION
 from .event import SafetyEvent
 
 
@@ -26,12 +27,17 @@ def aggregate_events(events: list[SafetyEvent]) -> dict[str, Any]:
     ppe_violations = sum(
         1 for e in events if e.event_type.startswith("missing_")
     )
-    unique_persons = {e.person_track_id for e in events if e.person_track_id is not None}
+    unique_track_ids = {
+        event.person_track_id
+        for event in events
+        if event.person_track_id is not None
+    }
 
     timestamps = [e.timestamp for e in events if e.timestamp]
     return {
+        "schema_version": OUTPUT_SCHEMA_VERSION,
         "total_events": len(events),
-        "unique_persons": len(unique_persons),
+        "unique_track_ids": len(unique_track_ids),
         "zone_intrusions": zone_intrusions,
         "ppe_violations": ppe_violations,
         "by_risk_level": dict(risk_counts),
@@ -62,8 +68,9 @@ def write_summary(events: list[SafetyEvent], output_dir: str | Path) -> Path:
     with csv_path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["metric", "value"])
+        writer.writerow(["schema_version", summary["schema_version"]])
         writer.writerow(["total_events", summary["total_events"]])
-        writer.writerow(["unique_persons", summary["unique_persons"]])
+        writer.writerow(["unique_track_ids", summary["unique_track_ids"]])
         writer.writerow(["zone_intrusions", summary["zone_intrusions"]])
         writer.writerow(["ppe_violations", summary["ppe_violations"]])
         for level, count in summary["by_risk_level"].items():

@@ -8,6 +8,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from .event_logger import FIELD_NAMES
+
 logger = logging.getLogger(__name__)
 
 
@@ -50,22 +52,33 @@ def export_report(events_path: str | Path, output_path: str | Path, fmt: str = "
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     with path.open("r", encoding="utf-8") as f:
-        for line in f:
+        for line_number, line in enumerate(f, start=1):
             line = line.strip()
             if line:
-                records.append(json.loads(line))
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(f"Invalid JSON on line {line_number} of {path}") from exc
+                if not isinstance(record, dict):
+                    raise ValueError(f"Expected an object on line {line_number} of {path}")
+                records.append(record)
     return records
 
 
 def _write_csv(records: list[dict[str, Any]], path: Path) -> None:
-    if not records:
-        path.write_text("")
-        return
-    fieldnames = list(records[0].keys())
+    fieldnames = list(FIELD_NAMES)
+    extra_fields = sorted({key for record in records for key in record} - set(fieldnames))
+    fieldnames.extend(extra_fields)
     with path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-        writer.writerows(records)
+        for record in records:
+            writer.writerow(
+                {
+                    key: json.dumps(value) if isinstance(value, (dict, list, tuple)) else value
+                    for key, value in record.items()
+                }
+            )
 
 
 def _write_jsonl(records: list[dict[str, Any]], path: Path) -> None:

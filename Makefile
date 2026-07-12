@@ -1,88 +1,134 @@
-.PHONY: install test demo demo-all demo-video demo-video-full-ppe demo-camera train-ppe validate validate-all benchmark lint clean assets
+ENV_NAME ?= utility-safety-ai
+CONDA ?= conda
+RUN := $(CONDA) run -n $(ENV_NAME)
+PYTHON := $(RUN) python
+CLI := $(RUN) utility-safety-ai
+
+OUTPUT ?= outputs/demo
+RUN_ID ?= portfolio-demo
+MODEL ?= models/ppe_yolo11n.pt
+GENERAL_MODEL ?= models/yolo11n.pt
+DATA ?= construction-ppe.yaml
+
+.PHONY: help setup env install fetch-model test test-coverage lint typecheck web-check verify web \
+	demo demo-ppe demo-video demo-camera show-latest train-ppe validate benchmark export-model \
+	assets clean
+
+help:
+	@echo "setup          Create the Python 3.11 Conda environment and install the package"
+	@echo "install        Refresh editable package/dev dependencies in an existing environment"
+	@echo "fetch-model    Download yolo11n.pt into models/ with SHA-256 metadata"
+	@echo "verify         Run tests with coverage, Ruff, mypy, and Web syntax check"
+	@echo "demo           Clean-clone person + zone image demo"
+	@echo "demo-ppe       PPE image demo; requires MODEL (default models/ppe_yolo11n.pt)"
+	@echo "demo-video     Clean-clone person + zone video demo"
+	@echo "demo-camera    Ten-second webcam demo"
+	@echo "show-latest    Print the last successful run below OUTPUT"
+	@echo "web            Start the Streamlit app"
+
+setup: env install
+
+env:
+	$(CONDA) env create -f environment.yml
 
 install:
-	conda env create -f environment.yml || true
-	conda run -n utility-safety-ai pip install -e ".[dev]"
+	$(RUN) pip install -e ".[dev]"
+
+fetch-model:
+	$(CLI) fetch-model --model yolo11n.pt --output models
 
 test:
-	pytest -q
+	$(PYTHON) -m pytest -q
+
+test-coverage:
+	$(PYTHON) -m pytest -q --cov=utility_safety_ai --cov-report=term-missing --cov-fail-under=70
+
+lint:
+	$(RUN) ruff check .
+
+typecheck:
+	$(RUN) mypy src/utility_safety_ai
+
+web-check:
+	$(PYTHON) -m py_compile app.py
+
+verify: test-coverage lint typecheck web-check
+
+web:
+	$(RUN) streamlit run app.py
 
 demo:
-	python scripts/make_demo_assets.py
-	utility-safety-ai infer-image \
+	$(CLI) infer-image \
 	  --source examples/sample_images/construction_zone_01.jpg \
+	  --model $(GENERAL_MODEL) \
 	  --zones examples/zones_construction_zone_01.yaml \
-	  --output outputs/demo-ppe \
+	  --output $(OUTPUT) \
+	  --run-id $(RUN_ID) \
+	  --overwrite \
 	  --blur-faces
 
-demo-all:
-	utility-safety-ai infer-image \
-	  --source examples/sample_images/construction_zone_01.jpg \
-	  --zones examples/zones_construction_zone_01.yaml \
-	  --output outputs/demo-ppe/construction_zone_01 \
-	  --blur-faces
-	utility-safety-ai infer-image \
+demo-ppe:
+	$(CLI) infer-image \
 	  --source examples/sample_images/construction_site_ppe_01.jpg \
+	  --model $(MODEL) \
 	  --zones examples/zones_construction_site_ppe_01.yaml \
-	  --output outputs/demo-ppe/construction_site_ppe_01 \
-	  --blur-faces
-	utility-safety-ai infer-image \
-	  --source examples/sample_images/solar_farm_01.jpg \
-	  --zones examples/zones_solar_farm_01.yaml \
-	  --output outputs/demo-ppe/solar_farm_01 \
-	  --blur-faces
-	utility-safety-ai infer-image \
-	  --source examples/sample_images/construction_worker_gloves_01.jpg \
-	  --output outputs/demo-ppe/gloves_demo \
+	  --output $(OUTPUT) \
+	  --run-id $(RUN_ID)-ppe \
+	  --overwrite \
 	  --blur-faces
 
 demo-video:
-	utility-safety-ai infer-video \
-	  --source examples/sample_videos/construction_site_pan.mp4 \
-	  --zones examples/zones_construction_zone_01.yaml \
-	  --output outputs/demo-ppe-video \
-	  --blur-faces
-
-demo-video-full-ppe:
-	utility-safety-ai infer-video \
-	  --source examples/sample_videos/construction_ppe_pan.mp4 \
-	  --output outputs/demo-ppe-full-ppe-video \
+	$(CLI) infer-video \
+	  --source examples/sample_videos/construction_rebar_pexels_10294768.mp4 \
+	  --model $(GENERAL_MODEL) \
+	  --zones examples/zones_construction_rebar_pexels_10294768.yaml \
+	  --output $(OUTPUT) \
+	  --run-id $(RUN_ID)-video \
+	  --overwrite \
+	  --max-frames 120 \
 	  --blur-faces
 
 demo-camera:
-	utility-safety-ai infer-camera \
+	$(CLI) infer-camera \
 	  --source 0 \
-	  --zones examples/zones_construction_zone_01.yaml \
-	  --output outputs/demo-camera \
-	  --blur-faces \
-	  --duration 10
+	  --output $(OUTPUT) \
+	  --run-id $(RUN_ID)-camera \
+	  --overwrite \
+	  --duration 10 \
+	  --blur-faces
+
+show-latest:
+	$(PYTHON) -c "from pathlib import Path; from utility_safety_ai.utils.paths import resolve_latest_run; p = resolve_latest_run(Path('$(OUTPUT)')); print(p if p else 'No completed run')"
 
 train-ppe:
-	utility-safety-ai train \
-	  --data construction-ppe.yaml \
+	$(CLI) train \
+	  --data $(DATA) \
 	  --model yolo11n.pt \
 	  --epochs 30 \
 	  --imgsz 640 \
+	  --batch 16 \
 	  --project runs/train_ppe \
-	  --name ppe_yolo11n_30ep
+	  --name ppe_yolo11n
 
 validate:
-	python scripts/validate_ppe_model.py --model models/ppe_yolo11n.pt --output outputs/validation/yolo11n
-
-validate-all:
-	python scripts/validate_ppe_model.py --model models/ppe_yolo11n.pt --output outputs/validation/yolo11n
-	python scripts/validate_ppe_model.py --model models/ppe_yolo11s.pt --output outputs/validation/yolo11s
+	$(PYTHON) scripts/validate_ppe_model.py \
+	  --model $(MODEL) \
+	  --data $(DATA) \
+	  --output outputs/validation/ppe_yolo11n
 
 benchmark:
-	python scripts/benchmark.py --model models/ppe_yolo11n.pt --output outputs/benchmark
+	$(PYTHON) scripts/benchmark.py \
+	  --model $(MODEL) \
+	  --output outputs/benchmark/ppe_yolo11n
 
-lint:
-	ruff check .
-
-clean:
-	rm -rf outputs/*
-	find . -type d -name __pycache__ -exec rm -rf {} +
-	find . -type f -name '*.pyc' -delete
+export-model:
+	$(CLI) export-model \
+	  --model $(MODEL) \
+	  --format onnx \
+	  --output outputs/export
 
 assets:
-	python scripts/make_demo_assets.py
+	$(PYTHON) scripts/make_demo_assets.py
+
+clean:
+	$(PYTHON) -c "from pathlib import Path; import shutil; shutil.rmtree(Path('outputs'), ignore_errors=True)"

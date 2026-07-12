@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from utility_safety_ai.zones.geometry import bottom_center, point_in_polygon
+from utility_safety_ai.zones.geometry import (
+    bottom_center,
+    point_in_polygon,
+    scale_polygon,
+)
 
 SQUARE = [(0, 0), (10, 0), (10, 10), (0, 10)]
 TRIANGLE = [(0, 0), (10, 0), (5, 10)]
@@ -30,3 +34,10 @@ def test_empty_polygon_returns_false():
 
 def test_bottom_center():
     assert bottom_center((0, 0, 10, 20)) == (5, 20)
+
+
+def test_scale_normalized_polygon():
+    assert scale_polygon([(0.25, 0.5), (1.0, 1.0)], (200, 100)) == [
+        (50, 50),
+        (200, 100),
+    ]

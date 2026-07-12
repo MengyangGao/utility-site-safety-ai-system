@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+from types import ModuleType
+
 from click.testing import CliRunner
 
 from utility_safety_ai.cli import main
@@ -30,3 +34,122 @@ def test_export_report(tmp_path):
     result = runner.invoke(main, ["export-report", "--events", str(events_file), "--output", str(output_dir)])
     assert result.exit_code == 0
     assert (output_dir / "events.csv").exists()
+
+
+def test_cli_exposes_model_lifecycle_commands():
+    runner = CliRunner()
+    result = runner.invoke(main, ["--help"])
+    assert result.exit_code == 0
+    assert "fetch-model" in result.output
+    assert "export-model" in result.output
+
+
+def test_cli_rejects_out_of_range_inference_parameters(tmp_path):
+    source = tmp_path / "image.jpg"
+    source.write_bytes(b"placeholder")
+    runner = CliRunner()
+
+    result = runner.invoke(
+        main,
+        ["infer-image", "--source", str(source), "--conf", "1.5"],
+    )
+    assert result.exit_code == 2
+    assert "not in the range" in result.output
+
+
+def test_cli_rejects_explicit_missing_zone_file(tmp_path):
+    source = tmp_path / "image.jpg"
+    source.write_bytes(b"placeholder")
+    runner = CliRunner()
+
+    result = runner.invoke(
+        main,
+        [
+            "infer-image",
+            "--source",
+            str(source),
+            "--zones",
+            str(tmp_path / "missing.yaml"),
+        ],
+    )
+    assert result.exit_code == 2
+    assert "does not exist" in result.output
+
+
+def test_cli_reports_malformed_zone_config_before_loading_model(tmp_path):
+    source = tmp_path / "image.jpg"
+    source.write_bytes(b"placeholder")
+    zones = tmp_path / "zones.yaml"
+    zones.write_text("zones: not-a-list\n")
+    runner = CliRunner()
+
+    result = runner.invoke(
+        main,
+        ["infer-image", "--source", str(source), "--zones", str(zones)],
+    )
+    assert result.exit_code == 1
+    assert "must be a list" in result.output
+
+
+def test_fetch_model_moves_new_runtime_download_into_models(monkeypatch):
+    fake_ultralytics = ModuleType("ultralytics")
+    fake_ultralytics.__version__ = "test"
+
+    class FakeYOLO:
+        def __init__(self, model: str):
+            Path(model).write_bytes(b"checkpoint")
+            self.ckpt_path = model
+
+    fake_ultralytics.YOLO = FakeYOLO
+    monkeypatch.setitem(sys.modules, "ultralytics", fake_ultralytics)
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            main,
+            ["fetch-model", "--model", "yolo11n.pt", "--output", "models"],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert not Path("yolo11n.pt").exists()
+        assert Path("models/yolo11n.pt").read_bytes() == b"checkpoint"
+        assert Path("models/yolo11n.pt.json").is_file()
+
+
+def test_fetch_model_force_preserves_old_checkpoint_when_copy_fails(monkeypatch):
+    fake_ultralytics = ModuleType("ultralytics")
+    fake_ultralytics.__version__ = "test"
+
+    class FakeYOLO:
+        def __init__(self, model: str):
+            Path(model).write_bytes(b"new-checkpoint")
+            self.ckpt_path = model
+
+    fake_ultralytics.YOLO = FakeYOLO
+    monkeypatch.setitem(sys.modules, "ultralytics", fake_ultralytics)
+
+    def fail_copy(*_args, **_kwargs):
+        raise OSError("synthetic copy failure")
+
+    monkeypatch.setattr("utility_safety_ai.cli.shutil.copy2", fail_copy)
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        destination = Path("models/yolo11n.pt")
+        destination.parent.mkdir()
+        destination.write_bytes(b"old-checkpoint")
+
+        result = runner.invoke(
+            main,
+            [
+                "fetch-model",
+                "--model",
+                "yolo11n.pt",
+                "--output",
+                "models",
+                "--force",
+            ],
+        )
+
+        assert result.exit_code == 1
+        assert destination.read_bytes() == b"old-checkpoint"
