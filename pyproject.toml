@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "utility-safety-ai"
-version = "1.0.0"
+version = "1.1.0"
 description = "Auditable computer-vision safety monitoring for utility and construction worksites."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
@@ -15,7 +15,7 @@ authors = [
 ]
 keywords = ["computer-vision", "safety", "ppe", "yolo", "utility", "construction"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",

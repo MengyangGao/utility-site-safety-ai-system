@@ -1,10 +1,10 @@
-# Utility Site Safety AI — v1.0 Release Readiness Report
+# Utility Site Safety AI — v1.1 Release Readiness Report
 
 **Report date:** 2026-07-13
 
 **Target environment:** Miniconda, Python 3.11
 
-**Release status:** v1.0 release candidate verified on the 2026-07-13 target machine; ready for portfolio publication, but not certified for field deployment
+**Release status:** v1.1 portfolio release verified on the 2026-07-13 target machine; ready for public portfolio publication, but not certified for field deployment
 
 ## Executive assessment
 
@@ -98,17 +98,16 @@ Ultralytics 8.4.92, OpenCV 4.11, and Streamlit 1.59.1 on Apple Silicon macOS.
 | Gate | Command | Final result |
 |---|---|---|
 | Dependency consistency | `python -m pip check` | Passed — `No broken requirements found` |
-| Offline tests + package coverage | `pytest -q --cov=utility_safety_ai --cov-report=term-missing --cov-fail-under=70` | Passed — 121 tests; 80.34% package coverage |
-| Offline tests + Web entrypoint coverage | `pytest -q --cov=utility_safety_ai --cov=app --cov-report=term-missing` | Passed — 121 tests; 71.80% combined coverage |
+| Offline tests + package coverage | `pytest -q --cov=utility_safety_ai --cov-report=term-missing --cov-fail-under=70` | Passed — 136 tests; 80.56% package coverage |
 | Lint | `ruff check .` | Passed — all checks |
-| Types | `mypy src app.py` | Passed — 40 source files |
+| Types | `mypy src/utility_safety_ai` | Passed — 42 source files |
 | Web syntax/import | `python -m py_compile app.py` | Passed |
 | Package build | `python -m build` | Passed — sdist and wheel created |
-| Wheel install smoke | isolated venv + `pip install --no-deps dist/*.whl` + `utility-safety-ai --help` | Passed — wheel version 1.0.0 imported from the isolated environment; CLI exited 0 |
-| Streamlit | headless startup, Streamlit AppTest, and in-app browser smoke | Passed — dashboard rendered without console warnings or errors |
+| Wheel install smoke | isolated venv + `pip install --no-deps dist/*.whl` + CLI/doctor | Passed — wheel version 1.1.0; CLI and diagnostics exited 0 |
+| Streamlit | headless startup and Streamlit AppTest | Passed — modern control surface and required controls rendered without script exceptions; local browser navigation was blocked by the host safety policy |
 
-The build artifacts are `dist/utility_safety_ai-1.0.0.tar.gz` and
-`dist/utility_safety_ai-1.0.0-py3-none-any.whl`.
+The build artifacts are `dist/utility_safety_ai-1.1.0.tar.gz` and
+`dist/utility_safety_ai-1.1.0-py3-none-any.whl`.
 
 ## Recorded demo acceptance
 
@@ -119,7 +118,7 @@ utility-safety-ai infer-image \
   --source examples/sample_images/construction_zone_01.jpg \
   --model models/yolo11n.pt \
   --zones examples/zones_construction_zone_01.yaml \
-  --output outputs/v1-release \
+  --output outputs/v1.1-release \
   --run-id clean-image \
   --overwrite \
   --blur-faces
@@ -137,17 +136,19 @@ utility-safety-ai infer-video \
   --source examples/sample_videos/construction_rebar_pexels_10294768.mp4 \
   --model models/ppe_yolo11n.pt \
   --zones examples/zones_construction_rebar_pexels_10294768.yaml \
-  --output outputs/v1-release \
+  --output outputs/v1.1-release \
   --run-id ppe-video \
   --overwrite \
   --max-frames 120 \
-  --blur-faces
+  --blur-faces \
+  --privacy-mode pixelate
 ```
 
-It completed 120 frames with 468 detections, five cooldown-filtered zone events, five evidence
+It completed 120 frames with 468 detections, two spatially distinct zone events, two evidence
 snapshots, all audit logs, and a 1,920 x 1,080 annotated MP4 under
-`outputs/v1-release/runs/ppe-video/`. A separate PPE image run under
-`outputs/v1-release/runs/ppe-image/` completed with eight detections, one zone event, and associated
+`outputs/v1.1-release/runs/ppe-video/`. The previous ID 3→8→9→14 fragmentation no longer emitted
+three duplicate alerts inside the 10-second cooldown. A separate PPE image run under
+`outputs/v1.1-release/runs/ppe-image/` completed with eight detections, one zone event, and associated
 positive helmet, vest, gloves, boots, and goggles evidence.
 
 ## PPE training and evaluation status
@@ -173,14 +174,19 @@ per-class results, curves, confusion matrices, environment, training configurati
 sample are retained under `docs/model-evaluation/ppe_yolo11n-v1/`. The weight is deliberately local
 and excluded from Git; these claims apply only to the exact checkpoint hash.
 
+The v1.1 `model-gate` command was run with required `no_helmet`, `no_vest`, and `no_boots` classes.
+It correctly failed promotion because recall 0.5515 and mAP50 0.5786 missed the sample thresholds,
+`no_helmet` recall was 0.3947, `no_boots` recall was zero, and `no_vest` was absent. The application is
+release-ready as a portfolio prototype; the checkpoint is explicitly not field-ready.
+
 ## Acceptance matrix
 
 | Requirement | Implementation status | Final evidence status |
 |---|---|---|
 | Fresh Python 3.11 Conda environment | Verified | Rebuilt as `utility-safety-ai`; Python 3.11.15 |
 | Editable package and CLI | Verified | Editable install, sdist/wheel build, isolated wheel smoke passed |
-| Image inference | Verified | `outputs/v1-release/runs/clean-image/` and `ppe-image/` |
-| Video inference | Verified | `ppe-video/`: 120 frames, 468 detections, five events/snapshots |
+| Image inference | Verified | `outputs/v1.1-release/runs/ppe-image/` plus retained clean-clone evidence |
+| Video inference | Verified | `ppe-video/`: 120 frames, 468 detections, two events/snapshots |
 | Camera/RTSP inference | Implemented | Hardware/source dependent |
 | Person + zone clean-clone path | Verified | Real image run with general model and high-risk zone event |
 | Optional PPE checkpoint path | Verified locally | Trained, hashed, independently validated; weight not distributed in Git |
@@ -188,8 +194,8 @@ and excluded from Git; these claims apply only to the exact checkpoint hash.
 | Compliance and summaries | Verified | Retained real runs plus offline E2E tests |
 | Annotated media and snapshots | Verified | Image/video artifacts visually reviewed |
 | Privacy blur before persistence | Verified | Enabled in all retained release runs and covered by tests |
-| Streamlit Web app | Verified | AppTest plus manual browser smoke; no console errors |
-| Offline tests | Verified | 121 passed; 80.34% package coverage |
+| Streamlit Web app | Verified with stated limitation | AppTest, headless startup and static visual QA passed; host policy blocked local-browser navigation |
+| Offline tests | Verified | 136 passed; 80.56% package coverage |
 | Documentation and release policies | Verified | Local Markdown links and release-asset hashes checked |
 
 ## Known limitations and residual risk
@@ -200,10 +206,10 @@ and excluded from Git; these claims apply only to the exact checkpoint hash.
 - Person-PPE association is box-based and can fail under crowding or occlusion.
 - Tracking is temporary and can change IDs after long occlusion or scene cuts.
 - Zone intrusion is image-plane geometry, not calibrated 3D distance.
-- Face blur is not a legal anonymization guarantee and may miss small/profile/occluded faces.
+- Local face localization and configurable redaction are not a legal anonymization guarantee and may miss small/profile/occluded faces.
 - RTSP credentials can still leak through shell history, process inspection, external logs, or user screenshots even though application text artifacts are redacted.
 - Export success does not prove exported-model accuracy or performance.
-- No alert sink, role-based access control, database retention policy, fleet management, HA, or safety certification is included.
+- A JSON webhook, bounded local retention and incident-review workflow are included. Role-based access control, durable retry queues, fleet management, HA, and safety certification are not.
 - Example assets have mixed license terms with per-file hashes and verified source pages. Review `examples/assets.yaml` before redistribution.
 - The root MIT license covers original project code only; third-party software, weights, datasets, and media retain their own terms.
 
@@ -212,14 +218,14 @@ and excluded from Git; these claims apply only to the exact checkpoint hash.
 1. Collect balanced, site-specific hard-negative PPE data and promote a stronger v2 checkpoint
    through the same immutable evaluation gate.
 2. Re-verify example-media URLs, hashes, and license terms at each release.
-3. Establish a model registry with immutable checkpoint hashes, signed manifests, and promotion gates.
+3. Publish a redistributable PPE checkpoint through the committed model registry when upstream terms permit it; the current evaluated checkpoint remains local-only.
 4. Add hardware-specific exported-model regression tests for ONNX/OpenVINO/TensorRT/CoreML as applicable.
-5. Add authentication, authorization, retention, encryption, and alert routing before any multi-user pilot.
+5. Add authentication, authorization, encryption, durable alert retries and an external evidence store before any multi-user pilot.
 6. Conduct privacy, cybersecurity, licensing, and operational safety reviews with qualified stakeholders.
 7. Validate night, rain, glare, distance, crowding, occlusion, and camera-shift failure modes.
 
 ## Publication decision
 
-The source repository is ready for public portfolio publication as a v1.0 engineering prototype.
+The source repository is ready for public portfolio publication as a v1.1 engineering prototype.
 A real worksite or commercial deployment remains a separate engineering, legal, privacy,
 cybersecurity, licensing, and safety-certification program.

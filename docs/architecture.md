@@ -67,12 +67,15 @@ An event contains a UUID, UTC timestamp, source, frame/time position, risk, type
 
 ## Rule lifecycle
 
-`RuleEngine.evaluate_frame()` returns two lists:
+`RuleEngine.evaluate_frame()` returns three lists:
 
 - `active_findings`: everything currently true, used for on-screen annotation;
 - `new_events`: the cooldown-filtered subset used for snapshots and persistent event logs.
+- `resolved_findings`: findings that were active in the previous frame and are no longer true.
 
-This prevents a ten-second cooldown from making a still-active hazard disappear visually.
+Active findings carry `lifecycle_state: opened|ongoing`; resolved findings carry `resolved` and a
+resolution timestamp. This prevents a ten-second cooldown from making a still-active hazard disappear
+visually while giving integrations a deterministic lifecycle signal.
 
 Default rules include:
 
@@ -84,7 +87,10 @@ Default rules include:
 | Two or more distinct PPE violation types | at least high |
 | Missing helmet while a zone event is active | critical zone event |
 
-Cooldown keys combine temporary track ID, event type, and zone ID. Zone dwell state resets after the person leaves. The engine resets between sources/runs and also detects a restarted timebase.
+Cooldown keys combine temporary track ID, event type, and zone ID. A bounded spatial cache also
+suppresses substantially overlapping same-type/zone findings when a short occlusion changes the
+temporary ID. Separate non-overlapping people remain distinct. Zone dwell state resets after the
+person leaves. The engine resets between sources/runs and also detects a restarted timebase.
 
 ## Zone model
 
@@ -186,7 +192,11 @@ Each browser session receives a random output root under:
 outputs/web_demo/sessions/<session-id>/
 ```
 
-Detector, tracker, and rule engine state are run-scoped, not globally shared cached resources. The UI retains at most 20 run records in session state. Uploaded files use temporary lifetimes. Zone editing occurs in normalized coordinates and is converted only at the domain boundary.
+Detector, tracker, rule engine and language state are session/run scoped, not globally shared cached
+resources. The UI retains at most 20 run records in session state; run pruning removes the associated
+directory, and startup retention removes session directories older than 24 hours or beyond the
+20-session ceiling. Uploaded files use temporary lifetimes. Zone editing occurs in normalized
+coordinates and is converted only at the domain boundary.
 
 The Web UI is a local demo surface, not an authenticated multi-tenant service.
 
@@ -195,7 +205,7 @@ The Web UI is a local demo surface, not an authenticated multi-tenant service.
 | Boundary | Failure examples | Current response |
 |---|---|---|
 | Media decode | corrupt/truncated image or video | fail with non-zero error; do not publish successful latest pointer |
-| Model file | missing explicit path, incompatible/untrusted checkpoint | fail fast for missing paths; operators must trust/checksum model content |
+| Model file | missing explicit path, incompatible/untrusted checkpoint | verified profiles by default; hosted trusted-only mode; explicit warning for custom checkpoints |
 | Zone input | typo, degenerate polygon, invalid normalized point | schema validation error |
 | Live source | disconnect, invalid FPS, headless display | bounded reconnect/fallback FPS/actionable display error |
 | Output | writer/imwrite failure, filesystem error | checked write and failed manifest |
@@ -208,6 +218,6 @@ The Web UI is a local demo surface, not an authenticated multi-tenant service.
 - Detector adapters can emit the same `Detection` record.
 - Tracker implementations can preserve the temporary ID contract.
 - Zone/rule policies can be extended without changing model inference.
-- Event sinks can consume `new_events` for webhooks/MQTT after authentication and retry design.
+- The CLI webhook sink can consume emitted events; a durable production integration still needs authentication, retries and a dead-letter queue.
 - Database/object-storage backends can implement the run artifact contract.
 - Exported inference runtimes must preserve class names, thresholds, tracking, privacy order, and regression evidence.

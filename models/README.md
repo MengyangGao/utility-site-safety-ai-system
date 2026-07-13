@@ -3,6 +3,11 @@
 Checkpoint binaries are intentionally ignored by Git. They retain their upstream model/dataset
 license terms and can be large or deployment-specific.
 
+[`registry.json`](registry.json) is the machine-readable source of truth for public capabilities,
+installation commands, hashes, and redistribution status. The Web app exposes verified registry/local
+profiles by default; set `UTILITY_SAFETY_TRUSTED_MODELS_ONLY=1` for hosted deployments to disable
+arbitrary local checkpoint paths.
+
 Default discovery order:
 
 1. `ppe_yolo11n.pt`

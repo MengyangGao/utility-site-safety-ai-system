@@ -135,6 +135,13 @@ The exact weight is local-only and training was non-deterministic, so retraining
 this hash. These metrics are evidence for the recorded checkpoint, not a promise about a clean clone,
 a newly trained model, another site, or end-to-end pipeline throughput.
 
+The machine-readable `utility-safety-ai model-gate` command rejects this checkpoint under the sample
+field thresholds (recall 0.65, mAP50 0.60 and required-class recall 0.50): aggregate recall and mAP50
+are below threshold, `no_helmet` recall is below threshold, `no_boots` recall is zero, and `no_vest`
+is missing. This deliberate failure prevents a portfolio model from being silently promoted as
+field-ready. See [`field-pilot-plan.md`](field-pilot-plan.md) for the data and acceptance work needed
+to pass a future gate.
+
 ## Expected failure modes
 
 - Small/distant PPE occupies few pixels.

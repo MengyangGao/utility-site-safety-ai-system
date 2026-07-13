@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import shutil
 import time
 import uuid
 import zipfile
@@ -19,7 +21,7 @@ from utility_safety_ai.compliance.person_ppe_association import PPE_TYPES
 from utility_safety_ai.detection.model_loader import resolve_model_path
 from utility_safety_ai.detection.yolo_detector import YoloDetector
 from utility_safety_ai.events.summary import aggregate_events
-from utility_safety_ai.i18n import _
+from utility_safety_ai.i18n import _, set_language
 from utility_safety_ai.pipelines.camera_pipeline import run_camera_pipeline
 from utility_safety_ai.pipelines.image_pipeline import run_image_pipeline
 from utility_safety_ai.pipelines.video_pipeline import run_video_pipeline
@@ -33,6 +35,7 @@ from utility_safety_ai.web_helpers import (
     NormalizedZone,
     RunContext,
     ZoneValidationError,
+    cleanup_session_outputs,
     draw_zone_preview,
     inspect_detector,
     new_session_id,
@@ -74,6 +77,7 @@ ZONE_PRESETS: dict[str, tuple[Path | None, Path | None]] = {
     ),
     "Custom": (None, None),
 }
+DEMO_IMAGE = REPO_ROOT / "examples" / "sample_images" / "construction_zone_01.jpg"
 
 LANG_OPTIONS = {"English": "en", "简体中文": "zh-hans", "繁體中文": "zh-hant"}
 
@@ -115,6 +119,23 @@ WEB_TEXT: dict[str, dict[str, str]] = {
         "manifest": "Run manifest",
         "history_limit": "The latest 20 runs are kept in this browser session.",
         "start_blocked": "Fix the zone configuration before starting inference.",
+        "video_processing": "Video processing",
+        "complete": "Complete video",
+        "preview": "Quick preview",
+        "preview_frame_limit": "Preview frame limit",
+        "complete_video_notice": "The complete video will be processed. Runtime depends on its duration and device.",
+        "preview_video_notice": "Only the selected leading frames will be processed; the run manifest records the limit.",
+        "privacy_style": "Privacy redaction style",
+        "trusted_model": "Verified model profile",
+        "custom_model": "Use an advanced custom model path",
+        "custom_model_warning": "Only load checkpoints you trust. PyTorch model files can contain executable code.",
+        "run_sample": "Run portfolio sample",
+        "review_queue": "Incident review queue",
+        "save_review": "Save review decisions",
+        "review_saved": "Review decisions saved",
+        "compliance_view": "Compliance view",
+        "latest_state": "Latest state per track",
+        "timeline": "Full timeline",
     },
     "zh-hans": {
         "zone_mode": "区域编辑方式",
@@ -153,6 +174,23 @@ WEB_TEXT: dict[str, dict[str, str]] = {
         "manifest": "运行清单",
         "history_limit": "本浏览器会话保留最近 20 次运行。",
         "start_blocked": "请先修复区域配置再开始推理。",
+        "video_processing": "视频处理范围",
+        "complete": "完整视频",
+        "preview": "快速预览",
+        "preview_frame_limit": "预览帧数上限",
+        "complete_video_notice": "将处理完整视频，耗时取决于视频长度与运行设备。",
+        "preview_video_notice": "仅处理开头指定帧数，运行清单会记录该限制。",
+        "privacy_style": "隐私遮挡样式",
+        "trusted_model": "可信模型配置",
+        "custom_model": "使用高级自定义模型路径",
+        "custom_model_warning": "仅加载可信权重。PyTorch 模型文件可能包含可执行代码。",
+        "run_sample": "运行作品集示例",
+        "review_queue": "事件复核队列",
+        "save_review": "保存复核结果",
+        "review_saved": "复核结果已保存",
+        "compliance_view": "合规数据视图",
+        "latest_state": "每条轨迹最新状态",
+        "timeline": "完整时间线",
     },
     "zh-hant": {
         "zone_mode": "區域編輯方式",
@@ -191,6 +229,23 @@ WEB_TEXT: dict[str, dict[str, str]] = {
         "manifest": "執行清單",
         "history_limit": "本瀏覽器工作階段保留最近 20 次執行。",
         "start_blocked": "請先修正區域設定再開始推理。",
+        "video_processing": "影片處理範圍",
+        "complete": "完整影片",
+        "preview": "快速預覽",
+        "preview_frame_limit": "預覽影格上限",
+        "complete_video_notice": "將處理完整影片，耗時取決於影片長度與執行裝置。",
+        "preview_video_notice": "只處理開頭指定影格數，執行清單會記錄該限制。",
+        "privacy_style": "隱私遮擋樣式",
+        "trusted_model": "可信模型設定",
+        "custom_model": "使用進階自訂模型路徑",
+        "custom_model_warning": "只載入可信權重。PyTorch 模型檔案可能包含可執行程式碼。",
+        "run_sample": "執行作品集範例",
+        "review_queue": "事件覆核佇列",
+        "save_review": "儲存覆核結果",
+        "review_saved": "覆核結果已儲存",
+        "compliance_view": "合規資料檢視",
+        "latest_state": "每條軌跡最新狀態",
+        "timeline": "完整時間軸",
     },
 }
 
@@ -210,20 +265,43 @@ def _inject_custom_css() -> None:
     st.markdown(
         """
         <style>
-        .main .block-container { padding-top: 1.2rem; padding-bottom: 2rem; }
-        [data-testid="stSidebar"] { background: linear-gradient(180deg,#0b1220,#111827); }
+        :root { --canvas:#070b14; --panel:#0f172a; --line:#243044; --muted:#94a3b8;
+          --brand:#f97316; --brand-soft:rgba(249,115,22,.14); --cyan:#22d3ee; }
+        .stApp { background:radial-gradient(circle at 75% 0%,rgba(34,211,238,.06),transparent 30%),var(--canvas); }
+        .main .block-container { max-width:1440px;padding-top:1.1rem;padding-bottom:3rem; }
+        [data-testid="stSidebar"] { background:#0a101c;border-right:1px solid var(--line); }
         [data-testid="stSidebar"] h1,[data-testid="stSidebar"] h2,
         [data-testid="stSidebar"] h3,[data-testid="stSidebar"] label,
         [data-testid="stSidebar"] .stMarkdown { color:#e2e8f0!important; }
-        .title-card { background:linear-gradient(90deg,#1e3a8a,#0ea5e9);border-radius:16px;
-          padding:1.25rem 1.5rem;margin-bottom:1rem;color:white;
-          box-shadow:0 10px 25px -5px rgba(14,165,233,.25); }
-        .title-card h1 { margin:0;font-weight:700;font-size:1.65rem; }
-        .title-card p { margin:.3rem 0 0;opacity:.92;font-size:.9rem; }
-        .info-card { background:#0f172a;border-left:4px solid #0ea5e9;border-radius:0 12px 12px 0;
+        .title-card { position:relative;overflow:hidden;background:linear-gradient(135deg,#111827,#0b1324);
+          border:1px solid var(--line);border-radius:20px;padding:1.45rem 1.6rem;margin-bottom:1rem;color:white;
+          box-shadow:0 24px 55px -32px rgba(34,211,238,.45); }
+        .title-card:after { content:"";position:absolute;inset:0 0 0 auto;width:38%;
+          background:linear-gradient(135deg,transparent,rgba(34,211,238,.08));pointer-events:none; }
+        .eyebrow { color:var(--brand);font-size:.72rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase; }
+        .title-card h1 { margin:.35rem 0 0;font-weight:760;font-size:1.85rem;letter-spacing:-.025em; }
+        .title-card p { margin:.45rem 0 0;color:#aebbd0;font-size:.92rem;max-width:780px; }
+        .system-badge { display:inline-flex;align-items:center;gap:.45rem;border:1px solid rgba(34,211,238,.25);
+          background:rgba(34,211,238,.07);color:#a5f3fc;border-radius:999px;padding:.32rem .65rem;font-size:.72rem; }
+        .system-dot { width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.12); }
+        .workflow { display:grid;grid-template-columns:repeat(4,1fr);gap:.65rem;margin:.2rem 0 1.15rem; }
+        .workflow-step { border:1px solid var(--line);background:#0c1321;border-radius:12px;padding:.72rem .8rem;
+          color:var(--muted);font-size:.78rem; }
+        .workflow-step b { display:block;color:#f8fafc;font-size:.82rem;margin-top:.18rem; }
+        .workflow-step span { color:var(--brand);font-weight:800; }
+        .info-card { background:var(--panel);border-left:3px solid var(--brand);border-radius:0 12px 12px 0;
           padding:1rem;color:#e2e8f0; }
-        [data-testid="stMetric"] { background:#0f172a;border:1px solid #1e293b;border-radius:14px;padding:1rem; }
-        .stButton>button { border-radius:10px;font-weight:600; }
+        [data-testid="stMetric"] { background:linear-gradient(160deg,#111827,#0c1321);border:1px solid var(--line);
+          border-radius:14px;padding:1rem;box-shadow:0 14px 35px -28px #000; }
+        [data-testid="stMetricValue"] { font-weight:750;letter-spacing:-.03em; }
+        .stButton>button { border-radius:10px;font-weight:700;border-color:#334155;min-height:2.65rem; }
+        .stButton>button[kind="primary"] { background:var(--brand);border-color:var(--brand);color:#fff; }
+        [data-baseweb="tab-list"] { gap:.35rem;background:#0c1321;border:1px solid var(--line);border-radius:12px;padding:.3rem; }
+        [data-baseweb="tab"] { border-radius:8px;padding:.45rem .8rem; }
+        [data-baseweb="tab-highlight"] { background:var(--brand); }
+        [data-testid="stFileUploader"] { border:1px dashed #334155;border-radius:14px;background:#0a101c;padding:.4rem; }
+        hr { border-color:var(--line)!important; }
+        @media(max-width:900px){ .workflow{grid-template-columns:repeat(2,1fr)} .main .block-container{padding-left:1rem;padding-right:1rem} }
         </style>
         """,
         unsafe_allow_html=True,
@@ -232,8 +310,17 @@ def _inject_custom_css() -> None:
 
 def _initialize_session() -> None:
     st.session_state.setdefault("web_session_id", new_session_id())
-    output_root = REPO_ROOT / "outputs" / "web_demo" / "sessions" / st.session_state.web_session_id
+    sessions_root = REPO_ROOT / "outputs" / "web_demo" / "sessions"
+    output_root = sessions_root / st.session_state.web_session_id
     output_root.mkdir(parents=True, exist_ok=True)
+    if not st.session_state.get("retention_checked"):
+        cleanup_session_outputs(
+            sessions_root,
+            keep_session_id=st.session_state.web_session_id,
+            max_age_hours=24.0,
+            max_sessions=20,
+        )
+        st.session_state.retention_checked = True
     st.session_state.setdefault("web_output_root", output_root)
     st.session_state.setdefault("run_history", [])
     st.session_state.setdefault("preview_running", False)
@@ -472,10 +559,19 @@ def _run_live_preview() -> None:
         source_path=redacted_source,
         frame_index=frame_index,
         time_seconds=time_seconds,
-        metadata={"frame_size": (width, height), "privacy_blur_enabled": settings["blur_faces"]},
+        metadata={
+            "frame_size": (width, height),
+            "privacy_blur_enabled": settings["blur_faces"],
+            "privacy_mode": settings["privacy_mode"],
+        },
     )
     context.events.extend(evaluation.new_events)
-    display_frame = _blur_faces(frame.copy(), detections, enabled=settings["blur_faces"])
+    display_frame = _blur_faces(
+        frame.copy(),
+        detections,
+        enabled=settings["blur_faces"],
+        mode=settings["privacy_mode"],
+    )
     annotated = annotate_image(
         display_frame,
         zones_to_domain(settings["zones"]),
@@ -528,6 +624,7 @@ def _write_web_manifest(
     source: str,
     source_type: str,
     privacy_blur: bool,
+    privacy_mode: str,
     zones: list[NormalizedZone],
     model_info: dict[str, Any],
     summary: dict[str, Any],
@@ -537,6 +634,7 @@ def _write_web_manifest(
         "source": source,
         "source_type": source_type,
         "privacy_blur_enabled": privacy_blur,
+        "privacy_mode": privacy_mode,
         "zones": json.loads(json.dumps([zone.__dict__ for zone in zones], default=list)),
         "model": model_info,
         "summary": summary,
@@ -555,6 +653,7 @@ def _finish_run(
     result_path: Path | None,
     zones: list[NormalizedZone],
     privacy_blur: bool,
+    privacy_mode: str,
 ) -> dict[str, Any]:
     run_dir = resolve_latest_run(context.output_root)
     if run_dir is None:
@@ -565,6 +664,7 @@ def _finish_run(
         source=source_label,
         source_type=source_type,
         privacy_blur=privacy_blur,
+        privacy_mode=privacy_mode,
         zones=zones,
         model_info=context.model_info,
         summary=summary,
@@ -581,12 +681,19 @@ def _finish_run(
         "model_info": context.model_info,
         "zones_yaml": zones_to_yaml(zones),
         "privacy_blur": privacy_blur,
+        "privacy_mode": privacy_mode,
         "core_manifest_path": run_dir / "manifest.json",
         "web_manifest_path": web_manifest_path,
     }
     history = st.session_state.run_history
     history.insert(0, record)
+    pruned = history[20:]
     del history[20:]
+    session_root = Path(st.session_state.web_output_root).resolve()
+    for old_record in pruned:
+        old_run = Path(old_record["run_dir"]).resolve()
+        if old_run.is_relative_to(session_root):
+            shutil.rmtree(old_run, ignore_errors=True)
     st.session_state.selected_run_id = context.context_id
     st.session_state.active_run_context = None
     return record
@@ -609,7 +716,9 @@ def _run_uploaded(
     iou: float,
     cooldown: float,
     blur_faces: bool,
+    privacy_mode: str,
     zones: list[NormalizedZone],
+    max_frames: int | None = None,
 ) -> dict[str, Any]:
     suffix = Path(uploaded_file.name).suffix.lower()
     is_video = suffix in {".mp4", ".avi", ".mov"}
@@ -617,16 +726,32 @@ def _run_uploaded(
         _probe_source(source_path, video=is_video)
         context = _create_context(model_path, device, conf, iou, cooldown, zones)
         if is_video:
-            events = run_video_pipeline(
-                source_path=source_path,
-                output_root=context.output_root,
-                detector=context.detector,
-                zones=zones_to_domain(zones),
-                rule_engine=context.engine,
-                blur_faces_enabled=blur_faces,
-                max_frames=300,
-                audit_source=Path(uploaded_file.name).name,
-            )
+            progress = st.progress(0, text=_tr("ui.loading"))
+
+            def update_progress(processed: int, total: int | None) -> None:
+                if total:
+                    progress.progress(
+                        min(1.0, processed / total),
+                        text=f"{processed:,} / {total:,} frames",
+                    )
+                else:
+                    progress.progress(0, text=f"{processed:,} frames")
+
+            try:
+                events = run_video_pipeline(
+                    source_path=source_path,
+                    output_root=context.output_root,
+                    detector=context.detector,
+                    zones=zones_to_domain(zones),
+                    rule_engine=context.engine,
+                    blur_faces_enabled=blur_faces,
+                    privacy_mode=privacy_mode,
+                    max_frames=max_frames,
+                    audit_source=Path(uploaded_file.name).name,
+                    progress_callback=update_progress,
+                )
+            finally:
+                progress.empty()
         else:
             _, events = run_image_pipeline(
                 source_path=source_path,
@@ -635,6 +760,7 @@ def _run_uploaded(
                 zones=zones_to_domain(zones),
                 rule_engine=context.engine,
                 blur_faces_enabled=blur_faces,
+                privacy_mode=privacy_mode,
                 audit_source=Path(uploaded_file.name).name,
             )
         run_dir = resolve_latest_run(context.output_root)
@@ -649,7 +775,49 @@ def _run_uploaded(
             result_path=result_path,
             zones=zones,
             privacy_blur=blur_faces,
+            privacy_mode=privacy_mode,
         )
+
+
+def _run_portfolio_sample(
+    *,
+    model_path: str,
+    device: str | None,
+    conf: float,
+    iou: float,
+    cooldown: float,
+    blur_faces: bool,
+    privacy_mode: str,
+    zones: list[NormalizedZone],
+) -> dict[str, Any]:
+    """Run the bundled, provenance-documented image without an upload step."""
+
+    if not DEMO_IMAGE.is_file():
+        raise FileNotFoundError(f"Bundled demo image not found: {DEMO_IMAGE.name}")
+    context = _create_context(model_path, device, conf, iou, cooldown, zones)
+    _, events = run_image_pipeline(
+        source_path=DEMO_IMAGE,
+        output_root=context.output_root,
+        detector=context.detector,
+        zones=zones_to_domain(zones),
+        rule_engine=context.engine,
+        blur_faces_enabled=blur_faces,
+        privacy_mode=privacy_mode,
+        audit_source=DEMO_IMAGE.name,
+    )
+    run_dir = resolve_latest_run(context.output_root)
+    if run_dir is None:
+        raise RuntimeError("Sample pipeline did not publish its output run.")
+    return _finish_run(
+        context=context,
+        events=events,
+        source_type="sample",
+        source_label=DEMO_IMAGE.name,
+        result_path=_find_annotated_artifact(run_dir, "images"),
+        zones=zones,
+        privacy_blur=blur_faces,
+        privacy_mode=privacy_mode,
+    )
 
 
 def _run_stream(
@@ -662,6 +830,7 @@ def _run_stream(
     iou: float,
     cooldown: float,
     blur_faces: bool,
+    privacy_mode: str,
     zones: list[NormalizedZone],
 ) -> dict[str, Any]:
     redacted_source = redact_uri_credentials(source)
@@ -674,6 +843,7 @@ def _run_stream(
             zones=zones_to_domain(zones),
             rule_engine=context.engine,
             blur_faces_enabled=blur_faces,
+            privacy_mode=privacy_mode,
             max_frames=max_frames,
             audit_source=redacted_source,
         )
@@ -691,6 +861,7 @@ def _run_stream(
         result_path=result_path,
         zones=zones,
         privacy_blur=blur_faces,
+        privacy_mode=privacy_mode,
     )
 
 
@@ -717,14 +888,16 @@ def _safe_csv(path: Path) -> pd.DataFrame | None:
     return None if frame.empty else frame
 
 
-def _build_compliance_table(events_dir: Path) -> pd.DataFrame | None:
+def _build_compliance_table(
+    events_dir: Path, *, latest_only: bool = True
+) -> pd.DataFrame | None:
     frame = _safe_csv(events_dir / "compliance.csv")
     if frame is None:
         return None
     sort_columns = [column for column in ("person_track_id", "frame_index") if column in frame]
     if sort_columns:
         frame = frame.sort_values(sort_columns)
-    if "person_track_id" in frame:
+    if latest_only and "person_track_id" in frame:
         frame = frame.drop_duplicates(subset=["person_track_id"], keep="last")
     return frame
 
@@ -732,17 +905,74 @@ def _build_compliance_table(events_dir: Path) -> pd.DataFrame | None:
 def _zip_reports(run_dir: Path) -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        candidates = [run_dir / "events", run_dir / "snapshots"]
+        candidates = [
+            run_dir / "events",
+            run_dir / "snapshots",
+            run_dir / "images",
+            run_dir / "videos",
+        ]
         for root in candidates:
             if root.exists():
                 for path in root.rglob("*"):
                     if path.is_file():
                         archive.write(path, path.relative_to(run_dir))
-        for name in ("manifest.json", "web_run_manifest.json"):
+        for name in ("manifest.json", "web_run_manifest.json", "review_state.json"):
             path = run_dir / name
             if path.exists():
                 archive.write(path, path.name)
     return buffer.getvalue()
+
+
+def _render_review_queue(record: dict[str, Any], rows: list[dict[str, Any]]) -> None:
+    """Render and persist an operator acknowledgement workflow per run."""
+
+    if not rows:
+        return
+    run_dir = Path(record["run_dir"])
+    review_path = run_dir / "review_state.json"
+    existing: dict[str, dict[str, Any]] = {}
+    if review_path.exists():
+        try:
+            stored = json.loads(review_path.read_text(encoding="utf-8"))
+            existing = {item["event_id"]: item for item in stored.get("reviews", [])}
+        except (OSError, ValueError, KeyError, TypeError):
+            existing = {}
+    review_rows = []
+    for event, row in zip(record["events"], rows, strict=True):
+        saved = existing.get(event.event_id, {})
+        review_rows.append(
+            {
+                "event_id": event.event_id,
+                "risk": row["risk"],
+                "type": row["type"],
+                "time_seconds": row["time_seconds"],
+                "status": saved.get("status", "new"),
+                "assignee": saved.get("assignee", ""),
+                "note": saved.get("note", ""),
+            }
+        )
+    st.markdown(f"#### {_t('review_queue')}")
+    edited = st.data_editor(
+        pd.DataFrame(review_rows),
+        width="stretch",
+        hide_index=True,
+        disabled=["event_id", "risk", "type", "time_seconds"],
+        column_config={
+            "status": st.column_config.SelectboxColumn(
+                "status", options=["new", "acknowledged", "investigating", "resolved", "false_positive"]
+            )
+        },
+        key=f"review_{record['id']}",
+    )
+    if st.button(_t("save_review"), key=f"save_review_{record['id']}"):
+        payload = {
+            "updated_at": utc_run_label(),
+            "reviews": edited.to_dict(orient="records"),
+        }
+        review_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        st.success(_t("review_saved"))
 
 
 def _render_model_info(info: dict[str, Any], zones_yaml: str | None = None) -> None:
@@ -843,6 +1073,7 @@ def _render_run(record: dict[str, Any]) -> None:
                     width="stretch",
                     hide_index=True,
                 )
+            _render_review_queue(record, rows)
 
     with detections_tab:
         detections = _safe_csv(events_dir / "detections.csv")
@@ -856,7 +1087,16 @@ def _render_run(record: dict[str, Any]) -> None:
 
     with compliance_tab:
         st.info(_t("unknown_notice"))
-        compliance = _build_compliance_table(events_dir)
+        compliance_view = st.radio(
+            _t("compliance_view"),
+            ["latest_state", "timeline"],
+            format_func=lambda value: _t(value),
+            horizontal=True,
+            key=f"compliance_view_{record['id']}",
+        )
+        compliance = _build_compliance_table(
+            events_dir, latest_only=compliance_view == "latest_state"
+        )
         if compliance is None:
             st.info(_tr("ui.no_compliance_records"))
         else:
@@ -973,7 +1213,7 @@ def _render_history() -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title="Utility Site Safety AI", page_icon="🦺", layout="wide")
+    st.set_page_config(page_title="Utility Site Safety AI", page_icon="🛡️", layout="wide")
     _inject_custom_css()
     _initialize_session()
 
@@ -984,11 +1224,36 @@ def main() -> None:
             key="language_selector",
         )
         st.session_state.ui_language = LANG_OPTIONS[lang_label]
-        # Never call the process-global i18n setter from a multi-session Web app.
-        # All Web translations below receive this session's language explicitly;
-        # saved annotations retain the server's fixed/default language.
-        st.header("⚙️ " + _tr("ui.sidebar_settings"))
-        model_path = st.text_input(_tr("ui.model_path"), value=DEFAULT_MODEL)
+        # Context-local language selection keeps concurrent browser sessions
+        # isolated while making saved annotations match the selected UI language.
+        set_language(st.session_state.ui_language)
+        st.caption("CONTROL CENTER")
+        st.header(_tr("ui.sidebar_settings"))
+        trusted_models = list(
+            dict.fromkeys(
+                [
+                    DEFAULT_MODEL,
+                    *[
+                        str(path.relative_to(REPO_ROOT))
+                        for path in (
+                            REPO_ROOT / "models" / "ppe_yolo11n.pt",
+                            REPO_ROOT / "models" / "ppe_yolo11s.pt",
+                            REPO_ROOT / "models" / "yolo11n.pt",
+                        )
+                        if path.is_file()
+                    ],
+                    "yolo11n.pt",
+                ]
+            )
+        )
+        model_path = st.selectbox(_t("trusted_model"), trusted_models)
+        trusted_only = os.environ.get("UTILITY_SAFETY_TRUSTED_MODELS_ONLY", "0") == "1"
+        use_custom_model = st.toggle(
+            _t("custom_model"), value=False, disabled=trusted_only
+        )
+        if use_custom_model:
+            st.warning(_t("custom_model_warning"))
+            model_path = st.text_input(_tr("ui.model_path"), value=model_path)
         col1, col2 = st.columns(2)
         conf = col1.slider(_tr("ui.confidence"), 0.0, 1.0, 0.25, 0.05)
         iou = col2.slider(_tr("ui.nms_iou"), 0.0, 1.0, 0.45, 0.05)
@@ -999,16 +1264,21 @@ def main() -> None:
             value=True,
             help=_tr("ui.blur_faces_help"),
         )
+        privacy_mode = st.selectbox(
+            _t("privacy_style"),
+            ["gaussian", "pixelate", "solid"],
+            disabled=not blur_faces,
+        )
         st.caption(_t("privacy_default"))
         cooldown = float(st.slider(_tr("ui.cooldown"), 0, 60, 10, 1))
         st.caption(_tr("ui.confidence_floors_caption"))
 
         st.markdown("---")
-        st.header("🚧 " + _tr("ui.zones_config"))
+        st.header(_tr("ui.zones_config"))
         normalized_zones, zones_valid, _ = _zone_editor()
         st.markdown("---")
         model_info = st.session_state.last_model_info
-        st.subheader("🧠 " + _t("model_audit"))
+        st.subheader(_t("model_audit"))
         if model_info:
             st.caption(Path(model_info["requested_model"]).name)
             st.caption(", ".join(model_info.get("classes", [])) or "—")
@@ -1016,7 +1286,14 @@ def main() -> None:
             st.caption(_t("model_pending"))
 
     st.markdown(
-        f'<div class="title-card"><h1>🦺 {_tr("ui.title")}</h1><p>{_tr("ui.page_caption")}</p></div>',
+        f'<div class="title-card"><div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start">'
+        f'<div><div class="eyebrow">Safety intelligence platform</div><h1>{_tr("ui.title")}</h1>'
+        f'<p>{_tr("ui.page_caption")}</p></div><div class="system-badge"><i class="system-dot"></i> SYSTEM READY</div>'
+        f'</div></div><div class="workflow">'
+        f'<div class="workflow-step"><span>01</span><b>Connect source</b></div>'
+        f'<div class="workflow-step"><span>02</span><b>Configure controls</b></div>'
+        f'<div class="workflow-step"><span>03</span><b>Run analysis</b></div>'
+        f'<div class="workflow-step"><span>04</span><b>Review evidence</b></div></div>',
         unsafe_allow_html=True,
     )
 
@@ -1048,12 +1325,44 @@ def main() -> None:
                     caption=_t("zone_preview"),
                     width="stretch",
                 )
+        upload_is_video = bool(
+            uploaded_file
+            and Path(uploaded_file.name).suffix.lower() in {".mp4", ".avi", ".mov"}
+        )
+        video_mode = st.radio(
+            _t("video_processing"),
+            ["complete", "preview"],
+            format_func=lambda value: _t(value),
+            horizontal=True,
+            disabled=not upload_is_video,
+            key="video_processing_mode",
+        )
+        upload_max_frames = st.number_input(
+            _t("preview_frame_limit"),
+            min_value=30,
+            max_value=10000,
+            value=300,
+            step=30,
+            disabled=not upload_is_video or video_mode != "preview",
+        )
+        if upload_is_video:
+            st.caption(
+                _t("complete_video_notice")
+                if video_mode == "complete"
+                else _t("preview_video_notice")
+            )
         run_upload = st.button(
             "🚀 " + _tr("ui.run_inference"),
             type="primary",
             width="stretch",
             disabled=not zones_valid,
             key="run_upload",
+        )
+        run_sample = st.button(
+            _t("run_sample"),
+            width="stretch",
+            disabled=not zones_valid,
+            key="run_sample",
         )
 
     with camera_tab:
@@ -1116,6 +1425,7 @@ def main() -> None:
                 "iou": iou,
                 "cooldown": cooldown,
                 "blur_faces": blur_faces,
+                "privacy_mode": privacy_mode,
                 "zones": list(normalized_zones),
             }
             st.session_state.preview_running = True
@@ -1127,7 +1437,19 @@ def main() -> None:
 
     try:
         record: dict[str, Any] | None = None
-        if run_upload:
+        if run_sample:
+            with st.spinner(_tr("ui.loading")):
+                record = _run_portfolio_sample(
+                    model_path=model_path,
+                    device=device,
+                    conf=conf,
+                    iou=iou,
+                    cooldown=cooldown,
+                    blur_faces=blur_faces,
+                    privacy_mode=privacy_mode,
+                    zones=normalized_zones,
+                )
+        elif run_upload:
             if uploaded_file is None:
                 st.warning(_tr("ui.start_prompt"))
             else:
@@ -1141,7 +1463,13 @@ def main() -> None:
                         iou=iou,
                         cooldown=cooldown,
                         blur_faces=blur_faces,
+                        privacy_mode=privacy_mode,
                         zones=normalized_zones,
+                        max_frames=(
+                            int(upload_max_frames)
+                            if upload_is_video and video_mode == "preview"
+                            else None
+                        ),
                     )
         elif run_camera:
             if camera_image is None:
@@ -1157,6 +1485,7 @@ def main() -> None:
                         iou=iou,
                         cooldown=cooldown,
                         blur_faces=blur_faces,
+                        privacy_mode=privacy_mode,
                         zones=normalized_zones,
                     )
         elif run_rtsp:
@@ -1170,6 +1499,7 @@ def main() -> None:
                     iou=iou,
                     cooldown=cooldown,
                     blur_faces=blur_faces,
+                    privacy_mode=privacy_mode,
                     zones=normalized_zones,
                 )
         if record is not None:

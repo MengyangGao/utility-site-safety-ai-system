@@ -2,14 +2,14 @@
 
 **Auditable computer vision for utility and construction worksite safety — not another helmet-detection toy.**
 
-Utility Site Safety AI turns image, video, webcam, and RTSP inputs into localized hazard findings, privacy-protected evidence, immutable run artifacts, and reviewable CSV/JSONL reports. It is designed as a serious engineering portfolio and proof-of-concept for substations, electrical maintenance, renewable-energy sites, EV infrastructure, and civil works.
+Utility Site Safety AI v1.1 turns image, video, webcam, and RTSP inputs into localized hazard findings, privacy-protected evidence, immutable run artifacts, and reviewable CSV/JSONL reports. It is designed as a serious engineering portfolio and proof-of-concept for substations, electrical maintenance, renewable-energy sites, EV infrastructure, and civil works.
 
 > [!IMPORTANT]
 > This is an educational and engineering demonstration prototype. It is not certified for safety-critical deployment, does not guarantee worker safety, and does not replace a safety officer. Human review is required; false positives and false negatives are expected.
 
 ![PPE-enabled video inference with normalized work zones, temporary tracking, privacy blur, and active event summary](docs/assets/annotated-video-frame-2.jpg)
 
-*Real Pexels construction video, local PPE checkpoint, privacy blur enabled. The retained acceptance run processed 120 frames, wrote 468 detections, emitted five cooldown-filtered zone events, and saved five evidence snapshots.*
+*Real Pexels construction video, local PPE checkpoint, pixelated face redaction enabled. The v1.1 acceptance run processed 120 frames, wrote 468 detections, emitted two spatially distinct zone events, and saved two evidence snapshots.*
 
 | Clean-clone person + zone mode | PPE-enabled image mode |
 |---|---|
@@ -21,7 +21,7 @@ Release-media provenance, run IDs, model hashes, and license boundaries are reco
 
 - **Honest model capability:** a clean clone runs person + restricted-zone monitoring with COCO-pretrained YOLO11n. PPE claims activate only when the selected model actually exposes PPE classes.
 - **Person-level decisions:** positive and negative PPE boxes must associate to a detected person, contradictory evidence is resolved deterministically, and unobserved PPE remains `unknown` rather than being called a violation.
-- **Operational events, not frame spam:** active findings are separated from cooldown-filtered events; every emitted event can carry a privacy-protected snapshot.
+- **Operational events, not frame spam:** active findings are separated from cooldown-filtered events; spatial continuity prevents short tracker-ID switches from bypassing cooldown, and findings expose opened/ongoing/resolved lifecycle state.
 - **Audit-first outputs:** each run has input/model/output hashes, runtime and Git provenance, logs, summaries, detections, compliance state, media artifacts, and a collision-resistant run ID.
 - **Practical interfaces:** CLI, Streamlit, image/video pipelines, webcam/RTSP ingestion, normalized zone editing, report downloads, model training, validation, benchmarking, and export.
 
@@ -81,15 +81,19 @@ See [`docs/architecture.md`](docs/architecture.md) for lifecycle, trust boundari
 - Per-zone risk, dwell time, and required-PPE policy fields
 - Deterministic `low` / `medium` / `high` / `critical` escalation
 - Cooldown-based event de-duplication without hiding active findings
+- Spatial event continuity across short tracker-ID changes
 - Temporary per-stream track IDs; no identity recognition
-- Exact face blur when a face box exists, conservative person fallback otherwise
+- Explicit/local face localization with Gaussian, pixelated, or solid redaction and a compact head fallback
 - Event, detection, compliance, and aggregate logs in JSONL and CSV
 - Annotated image/video and event snapshots
 - Run manifests with artifact size and SHA-256 inventory
 - Failed-run manifests and atomic `latest.json` publication for successful runs
 - English, Simplified Chinese, and Traditional Chinese annotations/UI
-- Streamlit zone editor, model audit, run history, filters, evidence gallery, and ZIP downloads
+- Streamlit control room with complete/preview video modes, progress, one-click sample, zone editor, trusted-model profiles, incident review queue, compliance timeline, and complete ZIP downloads
+- Automatic Web artifact retention (24 hours / 20 sessions) and trusted-model-only hosted mode
+- Optional privacy-conscious JSON webhook delivery and `doctor` environment diagnostics
 - Custom PPE training, validation artifacts, device benchmark, and model export
+- Machine-readable model registry and aggregate/per-class promotion gate
 
 ## Quick start on a new computer
 
@@ -114,6 +118,17 @@ Fetch and pin the small general model locally. The command records its SHA-256 a
 
 ```bash
 utility-safety-ai fetch-model --model yolo11n.pt --output models
+utility-safety-ai doctor --model models/yolo11n.pt
+```
+
+The committed registry and promotion gate keep public capability claims machine-checkable. The
+current local PPE checkpoint intentionally fails the sample field gate because recall is too low and
+`no_vest` is absent:
+
+```bash
+utility-safety-ai model-gate \
+  --metrics docs/model-evaluation/ppe_yolo11n-v1/metrics.json \
+  --required-class no_helmet --required-class no_vest --required-class no_boots
 ```
 
 Run the clean-clone person + zone demo on a provenance-tracked CC0 image:
@@ -180,9 +195,12 @@ utility-safety-ai infer-video \
   --model models/yolo11n.pt \
   --zones examples/zones_construction_rebar_pexels_10294768.yaml \
   --output outputs/video \
-  --max-frames 300 \
-  --blur-faces
+  --blur-faces \
+  --privacy-mode pixelate
 ```
+
+Video processing is complete by default. Add `--max-frames` only when an explicitly bounded preview
+is intended; the manifest records the selected limit.
 
 ### Webcam or RTSP
 
@@ -203,6 +221,13 @@ utility-safety-ai infer-camera \
 ```
 
 OpenCV preview is opt-in with `--display` and requires a GUI-enabled OpenCV build. Saved video remains the normal review path for headless machines.
+
+Send emitted events to an operator-owned integration when required:
+
+```bash
+utility-safety-ai infer-camera --source 0 --blur-faces \
+  --webhook-url https://alerts.example.test/safety
+```
 
 ### Reports and model export
 
@@ -232,14 +257,16 @@ The Web UI provides:
 
 - Image/video upload and browser camera snapshots
 - Bounded RTSP/device processing and a live preview mode
-- Per-session private output roots and the latest 20 in-session runs
-- Model path, device, confidence, IoU, cooldown, and privacy controls
-- Privacy blur enabled by default
+- Per-session private output roots, 24-hour/20-session disk retention, and the latest 20 in-session runs
+- Verified model profiles, optional trusted custom path, device, confidence, IoU, cooldown, and privacy controls
+- Privacy redaction enabled by default with Gaussian, pixelated, and solid modes
 - Visual-table and YAML editors for normalized zones
 - Resolution-aware zone preview and downloadable zone YAML
 - Annotated results, filtered risk/event tables, detection charts, PPE compliance, and evidence snapshots
 - Model classes, capabilities, device, and checkpoint SHA-256 when available
-- CSV/JSONL, separate core/Web manifests, and an audit-report ZIP download
+- Incident acknowledgement/investigation/resolution/false-positive review states with assignee and notes
+- Latest-state and full-timeline compliance views
+- CSV/JSONL, separate core/Web manifests, review state, annotated media, and a complete ZIP download
 
 RTSP fields are masked in the UI. The application also sanitizes credentials in persisted text artifacts, but operators must still protect local files, shell history, footage, and network access.
 
@@ -329,6 +356,8 @@ The final machine-specific results belong in [`REPORT.md`](REPORT.md), not in ev
 - [`docs/model-card.md`](docs/model-card.md) — intended model use and evaluation contract
 - [`docs/dataset-card.md`](docs/dataset-card.md) — Construction-PPE and example-asset lineage
 - [`docs/demo-script.md`](docs/demo-script.md) — repeatable Bilibili/portfolio demo flow
+- [`docs/field-pilot-plan.md`](docs/field-pilot-plan.md) — site-specific data, metrics, gates, and staged validation
+- [`docs/deployment.md`](docs/deployment.md) — retention, trusted hosted mode, webhooks, and multi-camera reference architecture
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution workflow and quality bar
 - [`SECURITY.md`](SECURITY.md) — responsible vulnerability reporting
 - [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) — dependency, model, dataset, and media boundaries
@@ -341,9 +370,9 @@ The final machine-specific results belong in [`REPORT.md`](REPORT.md), not in ev
 - `unknown` means unobserved; it is neither compliant nor a confirmed violation.
 - Bounding-box association can mis-assign PPE when people overlap.
 - The fallback tracker does not provide identity or long-occlusion re-identification.
-- Track fragmentation can increase temporary-track counts and can emit another event after an ID changes; summaries never claim those IDs are unique people.
+- Track fragmentation can increase temporary-track counts. Spatial cooldown continuity suppresses overlapping ID switches, but long occlusions or materially shifted boxes may still represent a new finding.
 - Zone checks use the person's bottom-center point and do not replace camera calibration or 3D site geometry.
-- Face blur is a privacy aid, not a complete anonymization guarantee.
+- Local face localization and fallback redaction are privacy aids, not a complete anonymization guarantee.
 - RTSP reconnect behavior is bounded; this is not a multi-camera operations platform.
 - Model exports require format-specific runtimes and independent accuracy validation.
 - The system is not certified under any industrial safety, cybersecurity, or privacy standard.

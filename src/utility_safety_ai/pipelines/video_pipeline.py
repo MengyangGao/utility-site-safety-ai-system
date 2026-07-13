@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 import cv2
@@ -38,6 +39,8 @@ def run_video_pipeline(
     rule_engine: RuleEngine | None = None,
     blur_faces_enabled: bool = False,
     max_frames: int | None = None,
+    privacy_mode: str = "gaussian",
+    progress_callback: Callable[[int, int | None], None] | None = None,
     *,
     run_id: str | None = None,
     overwrite: bool = False,
@@ -65,6 +68,10 @@ def run_video_pipeline(
     if not 0.1 <= fps <= 240.0:
         fps = 30.0
     height, width = first_frame.shape[:2]
+    raw_frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    expected_total = raw_frame_count if raw_frame_count > 0 else None
+    if max_frames is not None and expected_total is not None:
+        expected_total = min(expected_total, max_frames)
 
     engine = rule_engine or RuleEngine(zones=zones)
     output_paths = OutputPaths(output_root, run_id=run_id, overwrite=overwrite)
@@ -79,6 +86,7 @@ def run_video_pipeline(
         source_integrity=file_source_integrity(source_path),
         config={
             "privacy_blur_enabled": blur_faces_enabled,
+            "privacy_mode": privacy_mode,
             "max_frames": max_frames,
             "input_fps": fps,
             "frame_size": [width, height],
@@ -112,6 +120,7 @@ def run_video_pipeline(
             "confidence_threshold": getattr(detector, "conf", None),
             "fps": fps,
             "privacy_blur_enabled": blur_faces_enabled,
+            "privacy_mode": privacy_mode,
             "frame_size": (width, height),
         }
 
@@ -125,6 +134,7 @@ def run_video_pipeline(
                 frame.copy(),
                 detections,
                 enabled=blur_faces_enabled,
+                mode=privacy_mode,
             )
             evaluation = engine.evaluate_frame(
                 detections,
@@ -159,6 +169,8 @@ def run_video_pipeline(
             all_events.extend(updated_events)
             total_detections += len(detections)
             frame_index += 1
+            if progress_callback is not None:
+                progress_callback(frame_index, expected_total)
 
             ok, next_frame = cap.read()
             frame = next_frame if ok and next_frame is not None and next_frame.size else None

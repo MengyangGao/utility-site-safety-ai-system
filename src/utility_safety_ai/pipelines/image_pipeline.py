@@ -36,6 +36,7 @@ def run_image_pipeline(
     zones: list[Zone],
     rule_engine: RuleEngine | None = None,
     blur_faces_enabled: bool = False,
+    privacy_mode: str = "gaussian",
     *,
     run_id: str | None = None,
     overwrite: bool = False,
@@ -67,6 +68,7 @@ def run_image_pipeline(
         source_integrity=file_source_integrity(source_path),
         config={
             "privacy_blur_enabled": blur_faces_enabled,
+            "privacy_mode": privacy_mode,
             "zones": zones_manifest(zones),
             "rule_engine": {
                 "cooldown_seconds": engine.cooldown_seconds,
@@ -83,13 +85,16 @@ def run_image_pipeline(
         detections = detector.predict(image)
         # Assign stable IDs so person-level compliance and summaries are useful.
         detections = SimpleTracker(iou_threshold=0.1).update(detections)
-        display_image = blur_faces(image.copy(), detections, enabled=blur_faces_enabled)
+        display_image = blur_faces(
+            image.copy(), detections, enabled=blur_faces_enabled, mode=privacy_mode
+        )
 
         engine.reset()
         shared_metadata = {
             "run_id": output_paths.run_id,
             "confidence_threshold": getattr(detector, "conf", None),
             "privacy_blur_enabled": blur_faces_enabled,
+            "privacy_mode": privacy_mode,
             "frame_size": (image.shape[1], image.shape[0]),
         }
         evaluation = engine.evaluate_frame(

@@ -207,6 +207,28 @@ def test_video_pipeline_processes_synthetic_video_and_persists_all_detections(tm
     assert {json.loads(line)["frame_index"] for line in detection_lines} == {0, 1, 2}
 
 
+def test_video_pipeline_without_limit_processes_complete_video(tmp_path):
+    source = tmp_path / "complete.avi"
+    _write_video(source, frames=7)
+
+    progress: list[tuple[int, int | None]] = []
+    run_video_pipeline(
+        source,
+        tmp_path / "outputs",
+        FakeDetector([]),
+        zones=[],
+        run_id="complete-video",
+        progress_callback=lambda processed, total: progress.append((processed, total)),
+    )
+
+    manifest = _assert_audit_contract(
+        tmp_path / "outputs" / "runs" / "complete-video"
+    )
+    assert manifest["config"]["max_frames"] is None
+    assert manifest["metrics"]["frames_processed"] == 7
+    assert progress[-1] == (7, 7)
+
+
 def test_camera_pipeline_uses_monotonic_elapsed_time_and_checked_output(tmp_path):
     source = tmp_path / "camera-source.avi"
     _write_video(source)

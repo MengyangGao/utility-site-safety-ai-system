@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "models": [
+    {
+      "id": "yolo11n-general",
+      "filename": "yolo11n.pt",
+      "source": "Ultralytics runtime registry",
+      "install_command": "utility-safety-ai fetch-model --model yolo11n.pt --output models",
+      "capabilities": ["person", "restricted_zone"],
+      "redistributable_with_repository": false,
+      "status": "clean-clone-default"
+    },
+    {
+      "id": "ppe-yolo11n-local-evaluation",
+      "filename": "ppe_yolo11n.pt",
+      "sha256": "b05d39dba9d9a5a19855b9cc7dc4c613e979a64a280929e593522685c19cefff",
+      "capabilities": ["person", "ppe", "restricted_zone"],
+      "redistributable_with_repository": false,
+      "status": "evaluation-evidence-only",
+      "model_card": "docs/model-card.md",
+      "evaluation": "docs/model-evaluation/ppe_yolo11n-v1/README.md"
+    }
+  ]
+}

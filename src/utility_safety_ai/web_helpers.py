@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import shutil
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -75,6 +76,38 @@ def new_session_id() -> str:
     """Return an opaque identifier suitable for a private Web output root."""
 
     return uuid.uuid4().hex
+
+
+def cleanup_session_outputs(
+    sessions_root: str | Path,
+    *,
+    keep_session_id: str | None = None,
+    max_age_hours: float = 24.0,
+    max_sessions: int = 20,
+) -> list[Path]:
+    """Delete expired Web-session artifacts and enforce a hard count limit."""
+
+    if max_age_hours < 0 or max_sessions < 1:
+        raise ValueError("Retention must keep at least one session and use a non-negative age")
+    root = Path(sessions_root)
+    if not root.exists():
+        return []
+    now = datetime.now(timezone.utc).timestamp()
+    candidates = sorted(
+        (path for path in root.iterdir() if path.is_dir() and path.name != keep_session_id),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    removed: list[Path] = []
+    retained = 1 if keep_session_id else 0
+    for path in candidates:
+        age_hours = max(0.0, now - path.stat().st_mtime) / 3600.0
+        if age_hours > max_age_hours or retained >= max_sessions:
+            shutil.rmtree(path)
+            removed.append(path)
+        else:
+            retained += 1
+    return removed
 
 
 def utc_run_label() -> str:

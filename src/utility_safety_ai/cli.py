@@ -13,11 +13,14 @@ from pathlib import Path
 from typing import TypeVar
 
 import click
+import cv2
 
+from .detection.model_loader import resolve_model_path
 from .detection.yolo_detector import YoloDetector
 from .events.report import export_report
 from .events.summary import aggregate_events
 from .i18n import SUPPORTED_LANGUAGES, set_language
+from .notifications import deliver_webhook
 from .pipelines.camera_pipeline import run_camera_pipeline
 from .pipelines.image_pipeline import run_image_pipeline
 from .pipelines.video_pipeline import run_video_pipeline
@@ -66,6 +69,12 @@ def _echo_result(events, run_dir: Path, *, prefix: str = "Inference complete") -
     click.echo(f"Run artifacts: {run_dir}")
 
 
+def _deliver_if_configured(events, webhook_url: str | None) -> None:
+    if webhook_url and events:
+        status = _run_checked(lambda: deliver_webhook(events, webhook_url))
+        click.echo(f"Webhook delivered: HTTP {status}")
+
+
 @click.group()
 @click.option("--verbose", is_flag=True, help="Enable debug logging.")
 @click.option(
@@ -110,11 +119,24 @@ def _common_inference_options(function):
         click.option("--device", default=None, help="Inference device (cpu, mps, cuda, etc.)."),
         click.option("--blur-faces", is_flag=True, help="Blur privacy-sensitive regions."),
         click.option(
+            "--privacy-mode",
+            type=click.Choice(["gaussian", "pixelate", "solid"]),
+            default="gaussian",
+            show_default=True,
+            help="Privacy redaction style.",
+        ),
+        click.option(
             "--cooldown",
             default=DEFAULT_COOLDOWN,
             type=click.FloatRange(min=0.0),
             show_default=True,
             help="Event cooldown in seconds.",
+        ),
+        click.option(
+            "--webhook-url",
+            default=None,
+            envvar="UTILITY_SAFETY_WEBHOOK_URL",
+            help="Optional operator-owned HTTP(S) alert endpoint.",
         ),
         click.option("--run-id", default=None, help="Optional deterministic audit run identifier."),
         click.option(
@@ -145,7 +167,9 @@ def infer_image(
     iou: float,
     device: str | None,
     blur_faces: bool,
+    privacy_mode: str,
     cooldown: float,
+    webhook_url: str | None,
     run_id: str | None,
     overwrite: bool,
 ) -> None:
@@ -163,11 +187,13 @@ def infer_image(
             zones=zone_list,
             rule_engine=engine,
             blur_faces_enabled=blur_faces,
+            privacy_mode=privacy_mode,
             run_id=effective_run_id,
             overwrite=overwrite,
         )
 
     _, events = _run_checked(operation)
+    _deliver_if_configured(events, webhook_url)
     _echo_result(events, output / "runs" / effective_run_id)
 
 
@@ -189,7 +215,9 @@ def infer_video(
     iou: float,
     device: str | None,
     blur_faces: bool,
+    privacy_mode: str,
     cooldown: float,
+    webhook_url: str | None,
     run_id: str | None,
     overwrite: bool,
     max_frames: int | None,
@@ -208,12 +236,14 @@ def infer_video(
             zones=zone_list,
             rule_engine=engine,
             blur_faces_enabled=blur_faces,
+            privacy_mode=privacy_mode,
             max_frames=max_frames,
             run_id=effective_run_id,
             overwrite=overwrite,
         )
 
     events = _run_checked(operation)
+    _deliver_if_configured(events, webhook_url)
     _echo_result(events, output / "runs" / effective_run_id)
 
 
@@ -287,7 +317,9 @@ def infer_camera(
     iou: float,
     device: str | None,
     blur_faces: bool,
+    privacy_mode: str,
     cooldown: float,
+    webhook_url: str | None,
     run_id: str | None,
     overwrite: bool,
     duration: float | None,
@@ -308,6 +340,7 @@ def infer_camera(
             zones=zone_list,
             rule_engine=engine,
             blur_faces_enabled=blur_faces,
+            privacy_mode=privacy_mode,
             duration_seconds=duration,
             max_frames=max_frames,
             display=display,
@@ -316,7 +349,73 @@ def infer_camera(
         )
 
     events = _run_checked(operation)
+    _deliver_if_configured(events, webhook_url)
     _echo_result(events, output / "runs" / effective_run_id, prefix="Camera inference complete")
+
+
+@main.command("doctor")
+@click.option("--model", default=None, help="Optional model path/name to validate without loading it.")
+def doctor(model: str | None) -> None:
+    """Report environment, acceleration, model and video-codec readiness."""
+
+    import platform
+
+    import torch
+
+    resolved = resolve_model_path(model)
+    model_path = Path(resolved)
+    model_state = "local" if model_path.is_file() else "runtime-download"
+    payload = {
+        "python": platform.python_version(),
+        "platform": platform.platform(),
+        "opencv": cv2.__version__,
+        "torch": torch.__version__,
+        "cuda_available": torch.cuda.is_available(),
+        "mps_available": bool(
+            hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+        ),
+        "model": str(resolved),
+        "model_state": model_state,
+        "privacy_face_cascade": bool(getattr(cv2, "data", None)),
+    }
+    click.echo(json.dumps(payload, indent=2))
+
+
+@main.command("model-gate")
+@click.option(
+    "--metrics",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, readable=True, path_type=Path),
+)
+@click.option("--min-precision", default=0.65, show_default=True, type=click.FloatRange(0, 1))
+@click.option("--min-recall", default=0.65, show_default=True, type=click.FloatRange(0, 1))
+@click.option("--min-map50", default=0.60, show_default=True, type=click.FloatRange(0, 1))
+@click.option("--min-class-recall", default=0.50, show_default=True, type=click.FloatRange(0, 1))
+@click.option("--required-class", "required_classes", multiple=True)
+def model_gate(
+    metrics: Path,
+    min_precision: float,
+    min_recall: float,
+    min_map50: float,
+    min_class_recall: float,
+    required_classes: tuple[str, ...],
+) -> None:
+    """Fail model promotion when aggregate or required-class metrics are weak."""
+
+    from .training.quality_gate import assess_model_metrics
+
+    report = json.loads(metrics.read_text(encoding="utf-8"))
+    result = assess_model_metrics(
+        report,
+        min_precision=min_precision,
+        min_recall=min_recall,
+        min_map50=min_map50,
+        min_class_recall=min_class_recall,
+        required_classes=required_classes,
+    )
+    click.echo(json.dumps(result, indent=2))
+    if not result["passed"]:
+        raise click.ClickException("Model did not pass the promotion gate")
 
 
 @main.command("export-report")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -41,7 +42,19 @@ def test_cli_exposes_model_lifecycle_commands():
     result = runner.invoke(main, ["--help"])
     assert result.exit_code == 0
     assert "fetch-model" in result.output
+    assert "doctor" in result.output
     assert "export-model" in result.output
+    assert "model-gate" in result.output
+
+
+def test_doctor_reports_environment_without_loading_model():
+    runner = CliRunner()
+    result = runner.invoke(main, ["doctor", "--model", "yolo11n.pt"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["model_state"] in {"local", "runtime-download"}
+    assert payload["opencv"]
 
 
 def test_cli_rejects_out_of_range_inference_parameters(tmp_path):

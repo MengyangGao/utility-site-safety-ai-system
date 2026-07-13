@@ -140,6 +140,49 @@ def test_cooldown_allows_event_after_window():
     assert len(second) == 1
 
 
+def test_cooldown_survives_tracker_id_switch_for_overlapping_person():
+    engine = RuleEngine(zones=ZONES, cooldown_seconds=10.0)
+    first = engine.evaluate(
+        [_det("person", (10, 10, 60, 90), track_id=1)],
+        source_type="video",
+        source_path="test.mp4",
+        time_seconds=0.0,
+    )
+    switched = engine.evaluate(
+        [_det("person", (12, 12, 58, 88), track_id=99)],
+        source_type="video",
+        source_path="test.mp4",
+        time_seconds=1.0,
+    )
+
+    assert len(first) == 1
+    assert switched == []
+
+
+def test_spatial_cooldown_does_not_merge_separate_people():
+    wide_zone = Zone(
+        id="wide",
+        name="Wide",
+        risk_level="high",
+        polygon=[(0, 0), (300, 0), (300, 100), (0, 100)],
+    )
+    engine = RuleEngine(zones=[wide_zone], cooldown_seconds=10.0)
+    first = engine.evaluate(
+        [_det("person", (10, 10, 40, 80), track_id=1)],
+        "video",
+        "test.mp4",
+        time_seconds=0.0,
+    )
+    second = engine.evaluate(
+        [_det("person", (200, 10, 240, 80), track_id=2)],
+        "video",
+        "test.mp4",
+        time_seconds=1.0,
+    )
+
+    assert len(first) == len(second) == 1
+
+
 def test_frame_evaluation_separates_active_findings_from_new_events():
     engine = RuleEngine(zones=ZONES, cooldown_seconds=10.0)
     detections = [_det("person", (10, 10, 30, 30), track_id=1)]
@@ -158,8 +201,19 @@ def test_frame_evaluation_separates_active_findings_from_new_events():
     )
 
     assert len(first.active_findings) == len(first.new_events) == 1
+    assert first.active_findings[0].metadata["lifecycle_state"] == "opened"
     assert len(repeated.active_findings) == 1
+    assert repeated.active_findings[0].metadata["lifecycle_state"] == "ongoing"
     assert repeated.new_events == []
+
+    cleared = engine.evaluate_frame(
+        [],
+        source_type="video",
+        source_path="test.mp4",
+        time_seconds=2.0,
+    )
+    assert cleared.active_findings == []
+    assert cleared.resolved_findings[0].metadata["lifecycle_state"] == "resolved"
 
 
 def test_zone_dwell_delays_intrusion_until_threshold():

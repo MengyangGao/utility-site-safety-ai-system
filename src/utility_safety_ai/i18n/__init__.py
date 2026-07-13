@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import os
+from contextvars import ContextVar
 
 SUPPORTED_LANGUAGES = {"en", "zh-hans", "zh-hant"}
 DEFAULT_LANGUAGE = "en"
 
 _ENV_KEY = "UTILITY_SAFETY_AI_LANG"
+_ACTIVE_LANGUAGE: ContextVar[str | None] = ContextVar(
+    "utility_safety_ai_language", default=None
+)
 
 
 _TRANSLATIONS: dict[str, dict[str, str]] = {
@@ -286,8 +290,9 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
 
 
 def current_language() -> str:
-    """Return the active language code (from env or default)."""
-    lang = os.environ.get(_ENV_KEY, DEFAULT_LANGUAGE).lower().replace("_", "-")
+    """Return the task-local language, then the environment default."""
+    active = _ACTIVE_LANGUAGE.get()
+    lang = (active or os.environ.get(_ENV_KEY, DEFAULT_LANGUAGE)).lower().replace("_", "-")
     if lang in SUPPORTED_LANGUAGES:
         return lang
     # Accept bare "zh" as simplified.
@@ -297,14 +302,14 @@ def current_language() -> str:
 
 
 def set_language(lang: str) -> str:
-    """Set the active language via environment variable.
+    """Set the active language for the current thread/task context.
 
     Returns the normalized language code that was set.
     """
     lang = lang.lower().replace("_", "-")
     if lang not in SUPPORTED_LANGUAGES:
         lang = "zh-hans" if lang.startswith("zh") else DEFAULT_LANGUAGE
-    os.environ[_ENV_KEY] = lang
+    _ACTIVE_LANGUAGE.set(lang)
     return lang
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 
 import yaml
@@ -45,3 +46,13 @@ def test_primary_documented_demo_inputs_exist():
 
     for relative_path in required:
         assert (EXAMPLES / relative_path).is_file(), relative_path
+
+
+def test_public_model_registry_is_machine_readable_and_honest():
+    registry = json.loads((REPO_ROOT / "models" / "registry.json").read_text(encoding="utf-8"))
+
+    assert registry["schema_version"] == "1.0"
+    assert any(model["status"] == "clean-clone-default" for model in registry["models"])
+    ppe = next(model for model in registry["models"] if "ppe" in model["capabilities"])
+    assert len(ppe["sha256"]) == 64
+    assert ppe["redistributable_with_repository"] is False

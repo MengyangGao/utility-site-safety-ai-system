@@ -10,6 +10,7 @@ import yaml
 
 from utility_safety_ai.web_helpers import (
     ZoneValidationError,
+    cleanup_session_outputs,
     draw_zone_preview,
     inspect_detector,
     parse_zone_yaml,
@@ -39,6 +40,31 @@ zones:
       - [0.8, 0.9]
       - [0.1, 0.9]
 """
+
+
+def test_session_retention_removes_expired_directories(tmp_path):
+    import os
+    import time
+
+    current = tmp_path / "current"
+    current.mkdir()
+    old = tmp_path / "old"
+    old.mkdir()
+    recent = tmp_path / "recent"
+    recent.mkdir()
+    old_time = time.time() - 48 * 3600
+    os.utime(old, (old_time, old_time))
+
+    removed = cleanup_session_outputs(
+        tmp_path,
+        keep_session_id="current",
+        max_age_hours=24,
+        max_sessions=2,
+    )
+
+    assert old in removed
+    assert current.exists()
+    assert recent.exists()
 
 
 def test_normalized_zone_round_trip_and_core_conversion(tmp_path):

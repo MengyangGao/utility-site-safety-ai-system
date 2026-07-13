@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import cv2
 import numpy as np
+import pytest
 
 from utility_safety_ai.events.event import Detection
 from utility_safety_ai.pipelines.image_pipeline import run_image_pipeline
@@ -64,6 +65,25 @@ def test_blur_disabled_returns_original():
     blurred = blur_faces(image, detections, enabled=False)
     assert blurred is image
     assert np.array_equal(blurred, original)
+
+
+@pytest.mark.parametrize("mode", ["gaussian", "pixelate", "solid"])
+def test_supported_privacy_modes_redact_explicit_face(mode):
+    image = np.random.default_rng(22).integers(0, 255, (80, 80, 3), dtype=np.uint8)
+    original = image.copy()
+
+    blur_faces(
+        image,
+        [Detection(1, "face", 0.9, (20, 20, 50, 50))],
+        mode=mode,
+    )
+
+    assert not np.array_equal(image[20:50, 20:50], original[20:50, 20:50])
+
+
+def test_invalid_privacy_mode_is_rejected():
+    with pytest.raises(ValueError, match="privacy mode"):
+        blur_faces(np.zeros((20, 20, 3), dtype=np.uint8), [], mode="identity")
 
 
 def test_associated_face_uses_precise_box_without_upper_body_fallback():

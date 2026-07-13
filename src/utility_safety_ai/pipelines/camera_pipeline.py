@@ -75,6 +75,7 @@ def run_camera_pipeline(
     zones: list[Zone],
     rule_engine: RuleEngine | None = None,
     blur_faces_enabled: bool = False,
+    privacy_mode: str = "gaussian",
     duration_seconds: float | None = None,
     max_frames: int | None = None,
     display: bool = False,
@@ -129,6 +130,7 @@ def run_camera_pipeline(
         ),
         config={
             "privacy_blur_enabled": blur_faces_enabled,
+            "privacy_mode": privacy_mode,
             "duration_seconds": duration_seconds,
             "max_frames": max_frames,
             "capture_fps": fps,
@@ -167,6 +169,7 @@ def run_camera_pipeline(
             "confidence_threshold": getattr(detector, "conf", None),
             "capture_fps": fps,
             "privacy_blur_enabled": blur_faces_enabled,
+            "privacy_mode": privacy_mode,
             "frame_size": (width, height),
         }
         started_at = time.monotonic()
@@ -185,6 +188,7 @@ def run_camera_pipeline(
                 frame.copy(),
                 detections,
                 enabled=blur_faces_enabled,
+                mode=privacy_mode,
             )
             evaluation = engine.evaluate_frame(
                 detections,

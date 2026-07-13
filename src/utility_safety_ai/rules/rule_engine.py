@@ -55,6 +55,7 @@ class RuleEvaluation:
 
     active_findings: list[SafetyEvent]
     new_events: list[SafetyEvent]
+    resolved_findings: list[SafetyEvent]
 
 
 class RuleEngine:
@@ -81,6 +82,11 @@ class RuleEngine:
         self._last_emitted: dict[
             tuple[int | None, str, str | None], float
         ] = {}
+        # A tracker can assign a new ID after a short occlusion. Keep a small
+        # spatial event cache so an ID switch cannot bypass the operator's
+        # cooldown and flood the event log with the same physical finding.
+        self._recent_spatial_events: list[tuple[SafetyEvent, float]] = []
+        self._active_findings: list[SafetyEvent] = []
         self._zone_entered_at: dict[tuple[Hashable, str], float] = {}
         self._stream_key: tuple[str, str] | None = None
         self._last_time_seconds: float | None = None
@@ -88,6 +94,8 @@ class RuleEngine:
     def reset(self) -> None:
         """Reset all temporal state before processing a new run/stream."""
         self._last_emitted.clear()
+        self._recent_spatial_events.clear()
+        self._active_findings.clear()
         self._zone_entered_at.clear()
         self._stream_key = None
         self._last_time_seconds = None
@@ -213,6 +221,9 @@ class RuleEngine:
             if key in current_zone_keys
         }
 
+        active_findings, resolved_findings = self._apply_lifecycle(
+            active_findings, timestamp
+        )
         new_events = [
             event
             for event in active_findings
@@ -221,7 +232,44 @@ class RuleEngine:
         return RuleEvaluation(
             active_findings=active_findings,
             new_events=new_events,
+            resolved_findings=resolved_findings,
         )
+
+    def _apply_lifecycle(
+        self,
+        current: list[SafetyEvent],
+        timestamp: str,
+    ) -> tuple[list[SafetyEvent], list[SafetyEvent]]:
+        """Mark findings opened/ongoing/resolved without duplicating event logs."""
+
+        unmatched_previous = list(self._active_findings)
+        active: list[SafetyEvent] = []
+        for finding in current:
+            match_index = next(
+                (
+                    index
+                    for index, previous in enumerate(unmatched_previous)
+                    if previous.event_type == finding.event_type
+                    and previous.zone_id == finding.zone_id
+                    and self._same_physical_finding(previous, finding)
+                ),
+                None,
+            )
+            state = "opened"
+            if match_index is not None:
+                unmatched_previous.pop(match_index)
+                state = "ongoing"
+            active.append(self._with_metadata(finding, lifecycle_state=state))
+        resolved = [
+            self._with_metadata(
+                previous,
+                lifecycle_state="resolved",
+                resolved_at=timestamp,
+            )
+            for previous in unmatched_previous
+        ]
+        self._active_findings = active
+        return active, resolved
 
     def _build_ppe_event(
         self,
@@ -460,7 +508,49 @@ class RuleEngine:
 
         if time_seconds is None:
             return True
-        if last is None or time_seconds - last >= self.cooldown_seconds:
-            self._last_emitted[key] = time_seconds
+        if last is not None and time_seconds - last < self.cooldown_seconds:
+            return False
+
+        cutoff = time_seconds - self.cooldown_seconds
+        self._recent_spatial_events = [
+            item for item in self._recent_spatial_events if item[1] >= cutoff
+        ]
+        if any(
+            previous.event_type == event.event_type
+            and previous.zone_id == event.zone_id
+            and self._same_physical_finding(previous, event)
+            for previous, _emitted_at in self._recent_spatial_events
+        ):
+            return False
+
+        self._last_emitted[key] = time_seconds
+        self._recent_spatial_events.append((event, time_seconds))
+        return True
+
+    @staticmethod
+    def _same_physical_finding(previous: SafetyEvent, current: SafetyEvent) -> bool:
+        """Return whether two events likely describe one person after an ID switch.
+
+        Track IDs remain the strongest identity signal. When they differ, a
+        conservative overlap check reconnects only substantially overlapping
+        person boxes, avoiding the common short-occlusion alert storm without
+        merging separate workers elsewhere in the frame.
+        """
+
+        if previous.person_track_id == current.person_track_id:
             return True
-        return False
+        if previous.bbox is None or current.bbox is None:
+            return False
+        ax1, ay1, ax2, ay2 = previous.bbox
+        bx1, by1, bx2, by2 = current.bbox
+        intersection = max(0.0, min(ax2, bx2) - max(ax1, bx1)) * max(
+            0.0, min(ay2, by2) - max(ay1, by1)
+        )
+        if intersection <= 0:
+            return False
+        area_a = max(0.0, ax2 - ax1) * max(0.0, ay2 - ay1)
+        area_b = max(0.0, bx2 - bx1) * max(0.0, by2 - by1)
+        smaller_area = min(area_a, area_b)
+        # Intersection-over-smaller-area handles a partially visible worker
+        # whose replacement box is nested inside the pre-occlusion box.
+        return smaller_area > 0 and intersection / smaller_area >= 0.45

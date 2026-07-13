@@ -1,6 +1,6 @@
 # Release media evidence
 
-These images were generated from completed, privacy-enabled v1 acceptance runs on 2026-07-13.
+These images were generated from completed, privacy-enabled v1.1 acceptance runs on 2026-07-13.
 They are documentation evidence, not claims of production accuracy.
 
 | File | Source run | Detector | Source-media terms |
@@ -11,8 +11,9 @@ They are documentation evidence, not claims of production accuracy.
 | `annotated-video-frame-2.jpg` | `ppe-video`, frame near 3.5 s | Local PPE YOLO11n, SHA `b05d39db…` | Pexels source, This Viktọ |
 | `web-dashboard.jpg` | Final Streamlit visual smoke | Local PPE model selected; not loaded | Original project UI |
 
-The source run produced 120 annotated frames, 468 detections, five cooldown-filtered zone events,
-five privacy-processed evidence snapshots, and a completed artifact manifest. Runtime output remains
+The v1.1 source run produced 120 annotated frames, 468 detections, two spatially distinct zone events,
+two privacy-processed evidence snapshots, and a completed artifact manifest. Short tracker-ID changes
+that previously created three duplicate events were suppressed by spatial cooldown continuity. Runtime output remains
 under ignored `outputs/`; the two selected frames are retained here for the public project page.
 
 Before replacing release media:
