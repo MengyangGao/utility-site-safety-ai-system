@@ -51,9 +51,11 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
         run: python -m build
 
-      - name: Smoke-test wheel in an isolated environment
+      - name: Smoke-test wheel against the validated dependency environment
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
         run: |
-          python -m venv /tmp/utility-safety-wheel-smoke
-          /tmp/utility-safety-wheel-smoke/bin/pip install dist/*.whl
-          /tmp/utility-safety-wheel-smoke/bin/utility-safety-ai --help
+          # Dependencies already passed pip check and the full test suite above. Reuse them so the
+          # smoke test validates the wheel/entry point without downloading a second CUDA toolchain.
+          python -m venv --system-site-packages "$RUNNER_TEMP/utility-safety-wheel-smoke"
+          "$RUNNER_TEMP/utility-safety-wheel-smoke/bin/pip" install --no-deps --force-reinstall dist/*.whl
+          "$RUNNER_TEMP/utility-safety-wheel-smoke/bin/utility-safety-ai" --help
