@@ -49,6 +49,12 @@ class _FakeModel:
         return [_Result()]
 
 
+class _StreamingFakeModel(_FakeModel):
+    def __call__(self, _image, **kwargs):
+        self.kwargs = kwargs
+        return iter([_Result()])
+
+
 def _detector_without_ultralytics() -> YoloDetector:
     detector = YoloDetector.__new__(YoloDetector)
     detector.device = "cpu"
@@ -65,6 +71,15 @@ def test_predict_submits_global_threshold_to_model():
     detections = detector.predict(np.zeros((10, 10, 3), dtype=np.uint8))
 
     assert detector.model.kwargs["conf"] == 0.25
+    assert len(detections) == 2
+
+
+def test_predict_accepts_streaming_ultralytics_results():
+    detector = _detector_without_ultralytics()
+    detector.model = _StreamingFakeModel()
+
+    detections = detector.predict(np.zeros((10, 10, 3), dtype=np.uint8))
+
     assert len(detections) == 2
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,11 @@ DEFAULT_CLASS_CONF: dict[str, float] = {
 
 # Classes that should never be emitted as safety-relevant detections.
 IGNORE_CLASSES = {"none"}
+
+
+def _first_result(results: Iterable[Any]) -> Any | None:
+    """Return the first Ultralytics result from either a list or stream."""
+    return next(iter(results), None)
 
 
 def _auto_device() -> str:
@@ -89,7 +95,8 @@ class YoloDetector:
             device=self.device,
             verbose=False,
         )
-        return self._to_detections(results[0])
+        result = _first_result(results)
+        return [] if result is None else self._to_detections(result)
 
     def track(self, image: np.ndarray | str | Path) -> list[Detection]:
         """Run tracking on a single frame.
@@ -105,7 +112,8 @@ class YoloDetector:
                 persist=True,
                 verbose=False,
             )
-            return self._to_detections(results[0])
+            result = _first_result(results)
+            return [] if result is None else self._to_detections(result)
         except Exception as exc:  # pragma: no cover - defensive fallback
             logger.debug("Tracking failed (%s); falling back to detection.", exc)
             return self.predict(image)
