@@ -7,15 +7,12 @@ from pathlib import Path
 import cv2
 import streamlit as st
 
-from ..i18n import set_language
-from ..monitoring.profiles import get_monitoring_profile, monitoring_profile_names
-from ..web_helpers import (
-    ZoneValidationError,
-    draw_zone_preview,
-    parse_zone_yaml,
-    zones_to_yaml,
+from utility_safety_ai.i18n import set_language
+from utility_safety_ai.monitoring.profiles import (
+    get_monitoring_profile,
+    monitoring_profile_names,
 )
-from .config import (
+from utility_safety_ai.web.config import (
     DEMO_IMAGE,
     LANGUAGES,
     MODEL_PROFILES,
@@ -23,16 +20,22 @@ from .config import (
     ZONE_PRESETS,
     text,
 )
-from .results import render_history, render_run
-from .services import (
+from utility_safety_ai.web.results import render_history, render_run
+from utility_safety_ai.web.services import (
     AnalysisResult,
     AnalysisSettings,
     analyse_camera,
     analyse_file,
     analyse_path,
 )
-from .state import initialize_session, record_run
-from .theme import brand, hero, inject_theme, section
+from utility_safety_ai.web.state import initialize_session, record_run
+from utility_safety_ai.web.theme import brand, hero, inject_theme, section
+from utility_safety_ai.web_helpers import (
+    ZoneValidationError,
+    draw_zone_preview,
+    parse_zone_yaml,
+    zones_to_yaml,
+)
 
 
 def _t(key: str) -> str:
@@ -116,6 +119,11 @@ def _sidebar_settings() -> AnalysisSettings:
         st.markdown(
             f'<div class="usi-boundary">{_t("not_certified")}</div>',
             unsafe_allow_html=True,
+        )
+        st.caption(
+            "Open source under AGPL-3.0 · "
+            "[Source](https://github.com/MengyangGao/utility-site-safety-ai-system) · "
+            "[License](https://github.com/MengyangGao/utility-site-safety-ai-system/blob/main/LICENSE)"
         )
 
     return AnalysisSettings(
@@ -220,6 +228,7 @@ def _monitor_workspace(settings: AnalysisSettings, zones: list, zones_valid: boo
 
     if source_type == "Image":
         upload = st.file_uploader("Upload worksite image", type=["jpg", "jpeg", "png"])
+        sample_available = DEMO_IMAGE.is_file()
         left, right = st.columns(2)
         run_upload = left.button(
             _t("run"),
@@ -229,9 +238,11 @@ def _monitor_workspace(settings: AnalysisSettings, zones: list, zones_valid: boo
         )
         run_sample = right.button(
             "Run portfolio sample",
-            disabled=not zones_valid,
+            disabled=not zones_valid or not sample_available,
             width="stretch",
         )
+        if not sample_available:
+            st.caption("Portfolio sample is available when the app runs from a source checkout.")
         if run_upload and upload is not None:
             _run_action(
                 lambda: analyse_file(

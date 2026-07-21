@@ -10,7 +10,13 @@ from utility_safety_ai.web_helpers import parse_zone_yaml
 
 
 def test_streamlit_app_renders_without_exceptions():
-    app_path = Path(__file__).resolve().parents[1] / "app.py"
+    app_path = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "utility_safety_ai"
+        / "web"
+        / "app.py"
+    )
 
     app = AppTest.from_file(str(app_path), default_timeout=15).run()
 

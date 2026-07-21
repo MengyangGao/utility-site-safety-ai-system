@@ -19,7 +19,8 @@ from .config import WEB_OUTPUT_ROOT, ZONE_PRESETS
 
 def _default_zone_yaml() -> str:
     path, image_path = next(
-        value for value in ZONE_PRESETS.values() if value[0] is not None
+        (value for value in ZONE_PRESETS.values() if value[0] is not None),
+        (None, None),
     )
     if path is None or not path.is_file() or image_path is None:
         return "zones: []\n"

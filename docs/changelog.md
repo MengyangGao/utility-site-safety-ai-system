@@ -6,6 +6,28 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - No unreleased changes.
 
+## [2.1.0] - 2026-07-22
+
+### Changed
+
+- Relicensed original project code and documentation under AGPL-3.0-only to align with the
+  integrated Ultralytics stack.
+- Removed Pexels/custom-stock media, unverified source claims, and evaluation mosaics without exact
+  constituent-file provenance.
+- Added a machine-readable provenance manifest, hash/license audit command, and CI gate.
+- Reduced the repository root to five intentional files and moved environment configuration under
+  `config/`.
+- Replaced the root Streamlit wrapper with `utility-safety-ai web`.
+- Consolidated product, operational, model/data, legal, and development documentation.
+- Rewrote the README as a concise project entry point.
+
+## [2.0.0] - 2026-07-22
+
+### Added
+
+- Monitoring profiles, body-aware PPE association, motion-aware tracking, temporal confirmation,
+  per-run quality diagnostics, and a modular commercial-style Streamlit console.
+
 ## [1.0.0] - 2026-07-13
 
 ### Added
@@ -62,5 +84,7 @@ All notable changes to this project are documented here. The format follows [Kee
   clean clone or newly retrained weight.
 - This release is not certified for safety-critical, privacy-regulated, or production deployment.
 
-[Unreleased]: https://github.com/MengyangGao/utility-site-safety-ai-system/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/MengyangGao/utility-site-safety-ai-system/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/MengyangGao/utility-site-safety-ai-system/compare/v2.0.0...v2.1.0
+[2.0.0]: https://github.com/MengyangGao/utility-site-safety-ai-system/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/MengyangGao/utility-site-safety-ai-system/releases/tag/v1.0.0

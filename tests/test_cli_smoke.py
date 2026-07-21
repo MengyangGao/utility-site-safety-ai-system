@@ -45,6 +45,26 @@ def test_cli_exposes_model_lifecycle_commands():
     assert "doctor" in result.output
     assert "export-model" in result.output
     assert "model-gate" in result.output
+    assert "audit-provenance" in result.output
+    assert "web" in result.output
+
+
+def test_provenance_audit_command_passes_for_repository():
+    repo_root = Path(__file__).resolve().parents[1]
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "audit-provenance",
+            "--manifest",
+            str(repo_root / "docs" / "legal" / "provenance.yaml"),
+            "--repo-root",
+            str(repo_root),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert '"passed": true' in result.output
 
 
 def test_doctor_reports_environment_without_loading_model():

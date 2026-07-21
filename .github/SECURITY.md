@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Security fixes are applied to the latest `1.x` release line and the default branch. Older prototypes are not supported.
+Security fixes are applied to the latest release and the default branch. Older prototypes are not supported.
 
 ## Reporting a vulnerability
 

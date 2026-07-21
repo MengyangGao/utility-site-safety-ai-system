@@ -6,5 +6,5 @@ dependencies:
   - python=3.11
   - pip>=24
   - pip:
-      # requirements.txt contains runtime plus development verification tools.
+      # Run conda from the repository root; pyproject.toml owns all dependency ranges.
       - -r requirements.txt

@@ -2,11 +2,26 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+
+def _discover_repo_root() -> Path:
+    override = os.environ.get("UTILITY_SAFETY_REPO_ROOT")
+    if override:
+        return Path(override).expanduser().resolve()
+    current = Path.cwd().resolve()
+    for candidate in (current, *current.parents):
+        if (candidate / "pyproject.toml").is_file() and (
+            candidate / "src" / "utility_safety_ai"
+        ).is_dir():
+            return candidate
+    return current
+
+
+REPO_ROOT = _discover_repo_root()
 WEB_OUTPUT_ROOT = REPO_ROOT / "outputs" / "web_demo" / "sessions"
-DEMO_IMAGE = REPO_ROOT / "examples" / "sample_images" / "construction_zone_01.jpg"
+DEMO_IMAGE = REPO_ROOT / "examples" / "sample_images" / "construction_site_ppe_01.jpg"
 
 MODEL_PROFILES: dict[str, str] = {}
 if (REPO_ROOT / "models" / "ppe_yolo11n.pt").is_file():
@@ -17,21 +32,11 @@ MODEL_PROFILES["Person + restricted zone · YOLO11n"] = (
     else "yolo11n.pt"
 )
 
-ZONE_PRESETS: dict[str, tuple[Path | None, Path | None]] = {
-    "Construction perimeter": (
-        REPO_ROOT / "examples" / "zones_construction_zone_01.yaml",
-        REPO_ROOT / "examples" / "sample_images" / "construction_zone_01.jpg",
-    ),
-    "Solar inspection": (
-        REPO_ROOT / "examples" / "zones_solar_inspection_pexels_4254172.yaml",
-        REPO_ROOT / "examples" / "sample_images" / "solar_inspection_pexels_4254172.jpg",
-    ),
-    "PPE work area": (
-        REPO_ROOT / "examples" / "zones_construction_site_ppe_01.yaml",
-        REPO_ROOT / "examples" / "sample_images" / "construction_site_ppe_01.jpg",
-    ),
-    "No restricted zones": (None, DEMO_IMAGE),
-}
+ZONE_PRESETS: dict[str, tuple[Path | None, Path | None]] = {}
+ppe_zone = REPO_ROOT / "examples" / "zones_construction_site_ppe_01.yaml"
+if ppe_zone.is_file() and DEMO_IMAGE.is_file():
+    ZONE_PRESETS["PPE work area"] = (ppe_zone, DEMO_IMAGE)
+ZONE_PRESETS["No restricted zones"] = (None, DEMO_IMAGE if DEMO_IMAGE.is_file() else None)
 
 LANGUAGES = {"English": "en", "简体中文": "zh-hans", "繁體中文": "zh-hant"}
 

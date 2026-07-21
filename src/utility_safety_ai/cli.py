@@ -7,6 +7,8 @@ import json
 import logging
 import os
 import shutil
+import subprocess
+import sys
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -456,6 +458,41 @@ def model_gate(
     click.echo(json.dumps(result, indent=2))
     if not result["passed"]:
         raise click.ClickException("Model did not pass the promotion gate")
+
+
+@main.command("audit-provenance")
+@click.option(
+    "--manifest",
+    default="docs/legal/provenance.yaml",
+    type=click.Path(exists=True, dir_okay=False, readable=True, path_type=Path),
+    show_default=True,
+    help="Repository provenance manifest.",
+)
+@click.option(
+    "--repo-root",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    show_default=True,
+)
+def audit_provenance_cmd(manifest: Path, repo_root: Path) -> None:
+    """Reject unregistered artifacts, unapproved licenses, and hash drift."""
+    from .governance import audit_provenance
+
+    report = audit_provenance(manifest, repo_root.resolve())
+    click.echo(json.dumps(report, indent=2))
+    if not report["passed"]:
+        raise click.ClickException("Provenance audit failed")
+
+
+@main.command("web")
+def web() -> None:
+    """Launch the Streamlit operator console."""
+    app_path = Path(__file__).resolve().parent / "web" / "app.py"
+    command = [sys.executable, "-m", "streamlit", "run", str(app_path)]
+    try:
+        subprocess.run(command, check=True)
+    except subprocess.CalledProcessError as exc:
+        raise click.ClickException(f"Streamlit exited with status {exc.returncode}") from exc
 
 
 @main.command("export-report")

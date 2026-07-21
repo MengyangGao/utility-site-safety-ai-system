@@ -1,0 +1,8 @@
+# Release-tool pins shared by every supported Python and operating-system job.
+# Runtime dependencies remain resolved from pyproject.toml for platform coverage.
+build==1.5.1
+mypy==1.20.2
+pytest==9.1.1
+pytest-cov==7.1.0
+ruff==0.15.21
+types-PyYAML==6.0.12.20260518

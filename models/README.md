@@ -29,5 +29,6 @@ The 2026-07-13 engineering evaluation applies only to local PPE checkpoint SHA-2
 the source repository, and non-deterministic retraining will not reproduce it. See
 [`docs/model-evaluation/ppe_yolo11n-v1`](../docs/model-evaluation/ppe_yolo11n-v1/README.md).
 
-Review [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) before redistributing a model or using
+Review the [model/data policy](../docs/model-and-data.md) and
+[third-party notices](../docs/legal/third-party-notices.md) before redistributing a model or using
 Ultralytics in a hosted, proprietary, or commercial context.

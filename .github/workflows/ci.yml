@@ -5,10 +5,20 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
+    name: Test · ${{ matrix.os }} · Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -16,46 +26,72 @@ jobs:
         python-version: ["3.10", "3.11", "3.12"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: |
             pyproject.toml
-            requirements.txt
+            config/constraints-ci.txt
 
-      - name: Install package and dev dependencies
+      - name: Install package and test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          python -m pip install -e ".[dev]" -c config/constraints-ci.txt
 
       - name: Verify dependency graph
-        run: pip check
+        run: python -m pip check
 
-      - name: Run tests with coverage
-        run: pytest -q --cov=utility_safety_ai --cov-report=term-missing --cov-fail-under=70
+      - name: Run offline tests with coverage
+        run: python -m pytest -q --cov=utility_safety_ai --cov-report=term-missing --cov-fail-under=70
 
-      - name: Lint with ruff
+  quality:
+    name: Quality, provenance, and package
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up reference Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            config/constraints-ci.txt
+
+      - name: Install package and quality tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]" -c config/constraints-ci.txt
+
+      - name: Verify dependency graph
+        run: python -m pip check
+
+      - name: Lint
         run: ruff check .
 
       - name: Type-check package
         run: mypy src/utility_safety_ai
 
-      - name: Verify web app imports
-        run: python -c "import app"
+      - name: Audit open-source provenance
+        run: utility-safety-ai audit-provenance
+
+      - name: Verify Web entry point
+        run: python -m py_compile src/utility_safety_ai/web/app.py
 
       - name: Build distribution
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
         run: python -m build
 
-      - name: Smoke-test wheel against the validated dependency environment
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      - name: Smoke-test wheel
+        shell: bash
         run: |
-          # Dependencies already passed pip check and the full test suite above. Reuse them so the
-          # smoke test validates the wheel/entry point without downloading a second CUDA toolchain.
           python -m venv --system-site-packages "$RUNNER_TEMP/utility-safety-wheel-smoke"
           "$RUNNER_TEMP/utility-safety-wheel-smoke/bin/pip" install --no-deps --force-reinstall dist/*.whl
           "$RUNNER_TEMP/utility-safety-wheel-smoke/bin/utility-safety-ai" --help
+          "$RUNNER_TEMP/utility-safety-wheel-smoke/bin/python" -c "from importlib.metadata import metadata; assert metadata('utility-safety-ai')['License-Expression'] == 'AGPL-3.0-only'"

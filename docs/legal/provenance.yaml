@@ -1,0 +1,98 @@
+schema_version: 2
+policy:
+  scope: committed third-party media and generated evaluation artifacts
+  allowed_licenses:
+    - AGPL-3.0-only
+    - CC0-1.0
+  rule: every audited artifact must have an exact source or derivation, SHA-256, and approved license
+
+sources:
+  construction-ppe:
+    name: Ultralytics Construction-PPE 1.0.0
+    url: https://docs.ultralytics.com/datasets/detect/construction-ppe/
+    download: https://github.com/ultralytics/assets/releases/download/v0.0.0/construction-ppe.zip
+    license: AGPL-3.0-only
+    archive_sha256: bef8dcb599aa4e9d9f5e602cb6fa7143d3c84d7f6a0ff40463d7f2a4c2632ccc
+  yolo11:
+    name: Ultralytics YOLO11
+    url: https://docs.ultralytics.com/models/yolo11/
+    source: https://github.com/ultralytics/ultralytics
+    license: AGPL-3.0-only
+
+artifacts:
+  - path: examples/sample_images/construction_site_ppe_01.jpg
+    sha256: 55f3e120b8f0101ee02ad8e138ec73f06e398225d98cdc990dd4ba7c510992c4
+    license: AGPL-3.0-only
+    source: construction-ppe
+    upstream_path: images/val/image1085.jpg
+  - path: examples/sample_images/construction_worker_gloves_01.jpg
+    sha256: af76cd3cf97e1a5acd1ae30ab841059f97af8a33627fdbc9b31ebb5469f21c63
+    license: AGPL-3.0-only
+    source: construction-ppe
+    upstream_path: images/val/image1049.jpg
+  - path: examples/sample_videos/construction_ppe_pan.mp4
+    sha256: 8eb60e3826b46c210a9a8595c928143f1799cd62bfaa4a320c1ae387860173df
+    license: AGPL-3.0-only
+    derived_from: examples/sample_images/construction_site_ppe_01.jpg
+    generated_by: scripts/make_demo_assets.py
+  - path: docs/assets/annotated-ppe-zone.jpg
+    sha256: 7b88715d8e1de5dedbb515316806a65ebbd1374b7e016b861204725ddfc014ff
+    license: AGPL-3.0-only
+    derived_from: examples/sample_images/construction_site_ppe_01.jpg
+    generated_by: utility-safety-ai infer-image
+    privacy_redaction: enabled
+  - path: docs/model-evaluation/ppe_yolo11n-v1/benchmark.json
+    sha256: 5529318660a7ba7f8a1fda2215d94dff1d8e4493634a71c28090289dd0537de1
+    license: AGPL-3.0-only
+    source: yolo11
+    generated_by: scripts/benchmark.py
+  - path: docs/model-evaluation/ppe_yolo11n-v1/confusion-matrix-normalized.png
+    sha256: 8806aa44405041035fec98960c4e71ce34abbf477a1415fb043d740fd4b828a7
+    license: AGPL-3.0-only
+    source: construction-ppe
+    generated_by: scripts/validate_ppe_model.py
+  - path: docs/model-evaluation/ppe_yolo11n-v1/confusion-matrix.png
+    sha256: 9f10da279351a13742d72d4b2798abcf16233dee8f1c1169531d1f12a51deca8
+    license: AGPL-3.0-only
+    source: construction-ppe
+    generated_by: scripts/validate_ppe_model.py
+  - path: docs/model-evaluation/ppe_yolo11n-v1/f1-curve.png
+    sha256: 604c53b1769cbdd888dccd5c2135a3bc8015f8604467df02c9b23934041f4074
+    license: AGPL-3.0-only
+    source: construction-ppe
+    generated_by: scripts/validate_ppe_model.py
+  - path: docs/model-evaluation/ppe_yolo11n-v1/metadata.json
+    sha256: 97dce9092ccdc19b5d9705ed73a6cf3680577c05dd4c04395411be1eace076d2
+    license: AGPL-3.0-only
+    source: construction-ppe
+    generated_by: scripts/validate_ppe_model.py
+  - path: docs/model-evaluation/ppe_yolo11n-v1/metrics.json
+    sha256: a19dd9cd2721dadc18863027c5828e860ac6c4d8410ab53ed8d03f93340fa96d
+    license: AGPL-3.0-only
+    source: construction-ppe
+    generated_by: scripts/validate_ppe_model.py
+  - path: docs/model-evaluation/ppe_yolo11n-v1/pr-curve.png
+    sha256: 41193ed0d60166dca0e52245fd672e167a58aac346baefc87f0b85e638c48cdf
+    license: AGPL-3.0-only
+    source: construction-ppe
+    generated_by: scripts/validate_ppe_model.py
+  - path: docs/model-evaluation/ppe_yolo11n-v1/precision-curve.png
+    sha256: 7861224a50ea2c220a93582ffc424c02b4894041e94050e11538f5f5ab85877e
+    license: AGPL-3.0-only
+    source: construction-ppe
+    generated_by: scripts/validate_ppe_model.py
+  - path: docs/model-evaluation/ppe_yolo11n-v1/recall-curve.png
+    sha256: 371db8cd2282eb14495935ea4388afba557263563acd9c3395f005140fbb63ff
+    license: AGPL-3.0-only
+    source: construction-ppe
+    generated_by: scripts/validate_ppe_model.py
+  - path: docs/model-evaluation/ppe_yolo11n-v1/training-args.yaml
+    sha256: 16624f628cbbf77aad7883ddb15a1ff791f33fca155baa0e6625b2595d8eaf50
+    license: AGPL-3.0-only
+    source: construction-ppe
+    generated_by: utility-safety-ai train
+  - path: docs/model-evaluation/ppe_yolo11n-v1/training-results.csv
+    sha256: c8f49ff736cc8630ce7e2d64f13ef5a085065d8d36da5d249c524975341a96cb
+    license: AGPL-3.0-only
+    source: construction-ppe
+    generated_by: utility-safety-ai train

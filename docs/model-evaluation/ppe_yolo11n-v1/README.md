@@ -55,18 +55,16 @@ media decode, tracking, rules, privacy blur, annotation, logging, and output enc
 - [`f1-curve.png`](f1-curve.png)
 - [`precision-curve.png`](precision-curve.png)
 - [`recall-curve.png`](recall-curve.png)
-- [`validation-labels.jpg`](validation-labels.jpg) and
-  [`validation-predictions.jpg`](validation-predictions.jpg) — one label/prediction batch pair
-
-The single retained prediction batch and public validation split do not replace a site-specific
-false-positive/false-negative gallery. That work remains required before any field pilot.
+The public validation split and aggregate plots do not replace a site-specific
+false-positive/false-negative gallery. That work remains required before any field pilot. The prior
+validation mosaics were removed because the exact upstream image filenames inside those composites
+had not been retained; the numeric artifacts remain tied to the dataset archive and checkpoint hash.
 
 ## License and provenance boundary
 
 The base YOLO11 checkpoint and Ultralytics runtime are offered under AGPL-3.0 with separate
-Enterprise terms available. Construction-PPE is documented by Ultralytics as AGPL-3.0. The two
-validation mosaics in this directory are derived from that dataset and are not relicensed by the
-repository's MIT license. The exact individual source filenames used inside Ultralytics' saved
-batch mosaic were not retained by the current validation helper; this is an evidence limitation.
-See [`THIRD_PARTY_NOTICES.md`](../../../THIRD_PARTY_NOTICES.md) before redistributing weights or
-validation media.
+Enterprise terms available. Construction-PPE is documented by Ultralytics as AGPL-3.0. This project
+is distributed under AGPL-3.0-only to keep its open-source license boundary aligned with the
+integrated detector stack. See the [third-party notices](../../legal/third-party-notices.md) and
+[provenance manifest](../../legal/provenance.yaml) before redistributing weights or evaluation
+artifacts.
