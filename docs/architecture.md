@@ -16,15 +16,15 @@ Utility Site Safety AI is organized around five engineering properties:
 flowchart TD
     A["Image, video, webcam, or RTSP"] --> B["YOLO detector adapter"]
     B --> C["Normalized Detection records"]
-    C --> D["Ultralytics tracker or IoU fallback"]
-    D --> E["Person-PPE association"]
+    C --> D["Ultralytics tracker or motion-aware fallback"]
+    D --> E["Body-region-aware Person-PPE association"]
     D --> F["Restricted-zone geometry"]
     E --> G["Resolved per-person compliance"]
     F --> H["Zone occupancy and dwell state"]
     G --> I["Safety rule engine"]
     H --> I
-    I --> J["Active findings"]
-    I --> K["Cooldown-filtered new events"]
+    I --> J["Active and provisional findings"]
+    I --> K["Temporally confirmed, cooldown-filtered events"]
     D --> L["Face/person privacy processing"]
     J --> M["Annotation"]
     L --> M
@@ -37,6 +37,10 @@ flowchart TD
     O --> R
     P --> R
     Q --> R
+    D --> S["Run quality diagnostics"]
+    E --> S
+    I --> S
+    S --> R
 ```
 
 ## Core records
@@ -53,7 +57,10 @@ The adapter submits the user-selected global confidence to Ultralytics, making i
 
 ### PersonCompliance
 
-PPE boxes are assigned to the most plausible person using overlap and center containment. State is resolved once per person and PPE type:
+PPE boxes are assigned using item containment, expected vertical body region, horizontal alignment,
+centre containment, and overlap. In a crowd, a link is rejected when the two best person scores are
+too close; the system records the PPE as unassociated instead of guessing. State is resolved once
+per person and PPE type:
 
 - `yes`: positive PPE evidence exists;
 - `no`: explicit negative evidence exists and is not contradicted by positive evidence;
@@ -67,13 +74,16 @@ An event contains a UUID, UTC timestamp, source, frame/time position, risk, type
 
 ## Rule lifecycle
 
-`RuleEngine.evaluate_frame()` returns three lists:
+`RuleEngine.evaluate_frame()` exposes five state views:
 
 - `active_findings`: everything currently true, used for on-screen annotation;
+- `provisional_findings`: active video/camera observations that have not met the profile's consecutive-frame gate;
+- `confirmed_findings`: active observations that have met the gate;
 - `new_events`: the cooldown-filtered subset used for snapshots and persistent event logs.
 - `resolved_findings`: findings that were active in the previous frame and are no longer true.
 
-Active findings carry `lifecycle_state: opened|ongoing`; resolved findings carry `resolved` and a
+Active findings carry `confirmation_count`, `confirmation_required`, `confirmation_status`, and
+`lifecycle_state: opened|ongoing`; resolved findings carry `resolved` and a
 resolution timestamp. This prevents a ten-second cooldown from making a still-active hazard disappear
 visually while giving integrations a deterministic lifecycle signal.
 
@@ -109,11 +119,14 @@ Strict parsing rejects missing files, duplicate IDs, unsupported fields, non-fin
 
 ## Tracking
 
-Ultralytics tracking is used when it produces IDs. The fallback tracker performs short-lived IoU matching for people only. It:
+Ultralytics tracking is used when it produces IDs. The fallback tracker globally ranks candidate
+matches using predicted motion, IoU, and normalized centre distance for people only. It:
 
 - resets at each run;
 - ages tracks through empty frames;
 - preserves upstream IDs in mixed frames;
+- keeps brief missed tracks alive and extrapolates bounded recent motion;
+- avoids detection stealing caused by per-track iteration order;
 - does not claim biometric identity or cross-camera continuity.
 
 IDs are operational correlation keys, not identities.
@@ -140,6 +153,8 @@ The original decoded frame is not written by the normal pipelines. This is still
 └── runs/
     └── <run-id>/
         ├── manifest.json
+        ├── quality.json
+        ├── quality.csv
         ├── images/
         ├── videos/
         ├── snapshots/
@@ -192,11 +207,12 @@ Each browser session receives a random output root under:
 outputs/web_demo/sessions/<session-id>/
 ```
 
-Detector, tracker, rule engine and language state are session/run scoped, not globally shared cached
-resources. The UI retains at most 20 run records in session state; run pruning removes the associated
-directory, and startup retention removes session directories older than 24 hours or beyond the
-20-session ceiling. Uploaded files use temporary lifetimes. Zone editing occurs in normalized
-coordinates and is converted only at the domain boundary.
+The root `app.py` is intentionally a five-line entry point. Product configuration, visual theme,
+session state, inference services, result/review rendering, and orchestration live in separate
+`utility_safety_ai.web` modules. Detector and rule state are run scoped, not globally shared cached
+resources. The UI retains at most 20 run records in session state; startup retention removes session
+directories older than 24 hours or beyond the 20-session ceiling. Uploaded files use temporary
+lifetimes. Zone editing occurs in normalized coordinates and is converted only at the domain boundary.
 
 The Web UI is a local demo surface, not an authenticated multi-tenant service.
 

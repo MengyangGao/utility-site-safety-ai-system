@@ -28,6 +28,17 @@ NEGATIVE_PPE = {
 
 PPE_TYPES = ["helmet", "vest", "gloves", "boots", "goggles"]
 
+# Expected vertical location of PPE-box centres inside a person box. These broad
+# bands intentionally tolerate posture and viewpoint variation while preventing
+# a boot beside one worker from being assigned to the torso of another.
+_BODY_REGIONS: dict[str, tuple[float, float]] = {
+    "helmet": (-0.08, 0.34),
+    "goggles": (-0.02, 0.38),
+    "vest": (0.12, 0.72),
+    "gloves": (0.20, 0.88),
+    "boots": (0.62, 1.08),
+}
+
 
 def _iou(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> float:
     ax1, ay1, ax2, ay2 = a
@@ -53,19 +64,68 @@ def _center_in_box(
     return cx1 <= cx <= cx2 and cy1 <= cy <= cy2
 
 
-def _association_score(
+def _intersection_over_item(
+    item: tuple[float, float, float, float],
+    container: tuple[float, float, float, float],
+) -> float:
+    """Return the fraction of a small PPE box contained by a person box."""
+    x1 = max(item[0], container[0])
+    y1 = max(item[1], container[1])
+    x2 = min(item[2], container[2])
+    y2 = min(item[3], container[3])
+    intersection = max(0.0, x2 - x1) * max(0.0, y2 - y1)
+    item_area = max(0.0, item[2] - item[0]) * max(0.0, item[3] - item[1])
+    return intersection / item_area if item_area > 0 else 0.0
+
+
+def _body_region_fit(
+    ppe_bbox: tuple[float, float, float, float],
+    person_bbox: tuple[float, float, float, float],
+    ppe_type: str,
+) -> float:
+    height = person_bbox[3] - person_bbox[1]
+    if height <= 0:
+        return 0.0
+    centre_y = (ppe_bbox[1] + ppe_bbox[3]) / 2.0
+    relative_y = (centre_y - person_bbox[1]) / height
+    lower, upper = _BODY_REGIONS[ppe_type]
+    if lower <= relative_y <= upper:
+        return 1.0
+    distance = lower - relative_y if relative_y < lower else relative_y - upper
+    return max(0.0, 1.0 - distance / 0.45)
+
+
+def _horizontal_fit(
     ppe_bbox: tuple[float, float, float, float],
     person_bbox: tuple[float, float, float, float],
 ) -> float:
-    """Return a geometry-based association score between a PPE box and a person box.
+    width = person_bbox[2] - person_bbox[0]
+    if width <= 0:
+        return 0.0
+    ppe_centre = (ppe_bbox[0] + ppe_bbox[2]) / 2.0
+    person_centre = (person_bbox[0] + person_bbox[2]) / 2.0
+    return max(0.0, 1.0 - abs(ppe_centre - person_centre) / (width * 0.75))
 
-    The score is the IoU, but a PPE box whose center lies inside the person box
-    gets a minimum score of 0.05 so small/occluded PPE items are still associated.
-    """
-    score = _iou(ppe_bbox, person_bbox)
-    if _center_in_box(ppe_bbox, person_bbox):
-        score = max(score, 0.05)
-    return score
+
+def _association_score(
+    ppe_bbox: tuple[float, float, float, float],
+    person_bbox: tuple[float, float, float, float],
+    ppe_type: str,
+) -> float:
+    """Score containment, body-region plausibility, and horizontal alignment."""
+    containment = _intersection_over_item(ppe_bbox, person_bbox)
+    body_fit = _body_region_fit(ppe_bbox, person_bbox, ppe_type)
+    horizontal_fit = _horizontal_fit(ppe_bbox, person_bbox)
+    centre_bonus = 1.0 if _center_in_box(ppe_bbox, person_bbox) else 0.0
+    # IoU is useful for large explicit-negative boxes, while containment is far
+    # more informative for small helmets, gloves, and boots.
+    return (
+        0.40 * containment
+        + 0.25 * body_fit
+        + 0.18 * horizontal_fit
+        + 0.12 * centre_bonus
+        + 0.05 * _iou(ppe_bbox, person_bbox)
+    )
 
 
 @dataclass
@@ -78,6 +138,7 @@ class PersonCompliance:
     positive_detections: list[Detection] = field(default_factory=list)
     negative_detections: list[Detection] = field(default_factory=list)
     conflicting_detections: list[Detection] = field(default_factory=list)
+    association_scores: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         # Ensure all PPE types are represented.
@@ -106,13 +167,17 @@ class PersonCompliance:
 
 def associate_ppe_to_persons(
     detections: list[Detection],
-    iou_threshold: float = 0.05,
+    iou_threshold: float = 0.28,
+    *,
+    ambiguity_margin: float = 0.08,
 ) -> tuple[list[PersonCompliance], list[Detection]]:
     """Associate PPE detections to person detections.
 
     Args:
         detections: All detections from a frame.
-        iou_threshold: Minimum association score for a PPE box to be linked to a person.
+        iou_threshold: Minimum composite association score for a link.
+        ambiguity_margin: Reject an association when the top two people have
+            nearly identical scores, which is safer in crowded scenes.
 
     Returns:
         A tuple of (person compliance records, unassociated PPE detections).
@@ -124,6 +189,13 @@ def associate_ppe_to_persons(
         or not 0.0 <= iou_threshold <= 1.0
     ):
         raise ValueError("iou_threshold must be a finite value between 0 and 1")
+    if (
+        isinstance(ambiguity_margin, bool)
+        or not isinstance(ambiguity_margin, (int, float))
+        or not isfinite(float(ambiguity_margin))
+        or not 0.0 <= ambiguity_margin <= 1.0
+    ):
+        raise ValueError("ambiguity_margin must be a finite value between 0 and 1")
     persons = [d for d in detections if d.class_name == "person"]
     ppe_dets = [
         d
@@ -148,24 +220,29 @@ def associate_ppe_to_persons(
     unassociated: list[Detection] = []
 
     for ppe in ppe_dets:
-        best_score = iou_threshold
-        best_person_index: int | None = None
-        for person_index, person in enumerate(persons):
-            score = _association_score(ppe.bbox, person.bbox)
-            if score > best_score or (
-                best_person_index is None and score >= best_score
-            ):
-                best_score = score
-                best_person_index = person_index
-
-        if best_person_index is None:
-            unassociated.append(ppe)
-            continue
-
         ppe_type = POSITIVE_PPE.get(ppe.class_name) or NEGATIVE_PPE.get(ppe.class_name)
         if ppe_type is None:
             unassociated.append(ppe)
             continue
+        ranked: list[tuple[float, int]] = []
+        for person_index, person in enumerate(persons):
+            ranked.append(
+                (_association_score(ppe.bbox, person.bbox, ppe_type), person_index)
+            )
+        ranked.sort(reverse=True)
+
+        if not ranked or ranked[0][0] < iou_threshold:
+            unassociated.append(ppe)
+            continue
+        if len(ranked) > 1 and ranked[0][0] - ranked[1][0] < ambiguity_margin:
+            unassociated.append(ppe)
+            continue
+
+        best_score, best_person_index = ranked[0]
+        records[best_person_index].association_scores[ppe_type] = max(
+            records[best_person_index].association_scores.get(ppe_type, 0.0),
+            round(best_score, 4),
+        )
 
         if ppe.class_name in POSITIVE_PPE:
             candidates[best_person_index][ppe_type]["positive"].append(ppe)

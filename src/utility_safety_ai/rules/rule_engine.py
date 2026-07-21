@@ -54,6 +54,8 @@ class RuleEvaluation:
     """
 
     active_findings: list[SafetyEvent]
+    confirmed_findings: list[SafetyEvent]
+    provisional_findings: list[SafetyEvent]
     new_events: list[SafetyEvent]
     resolved_findings: list[SafetyEvent]
 
@@ -78,6 +80,12 @@ class RuleEngine:
         self.cooldown_seconds = float(cooldown_seconds)
         self.rules_config = dict(rules_config or {})
         self._required_ppe = self._parse_required_ppe(self.rules_config)
+        self.association_min_score = self._bounded_config_float(
+            "association_min_score", 0.28
+        )
+        self.association_ambiguity_margin = self._bounded_config_float(
+            "association_ambiguity_margin", 0.08
+        )
         self._validate_risk_overrides()
         self._last_emitted: dict[
             tuple[int | None, str, str | None], float
@@ -148,7 +156,11 @@ class RuleEngine:
         timestamp = datetime.now(timezone.utc).isoformat()
         frame_size = self._frame_size(shared_metadata)
 
-        compliance_records, _unassociated = associate_ppe_to_persons(detections)
+        compliance_records, _unassociated = associate_ppe_to_persons(
+            detections,
+            iou_threshold=self.association_min_score,
+            ambiguity_margin=self.association_ambiguity_margin,
+        )
         active_findings: list[SafetyEvent] = []
         current_zone_keys: set[tuple[Hashable, str]] = set()
 
@@ -224,13 +236,25 @@ class RuleEngine:
         active_findings, resolved_findings = self._apply_lifecycle(
             active_findings, timestamp
         )
-        new_events = [
+        confirmed_findings = [
             event
             for event in active_findings
+            if event.metadata.get("confirmation_status") == "confirmed"
+        ]
+        provisional_findings = [
+            event
+            for event in active_findings
+            if event.metadata.get("confirmation_status") == "observing"
+        ]
+        new_events = [
+            event
+            for event in confirmed_findings
             if self._accept(event, time_seconds)
         ]
         return RuleEvaluation(
             active_findings=active_findings,
+            confirmed_findings=confirmed_findings,
+            provisional_findings=provisional_findings,
             new_events=new_events,
             resolved_findings=resolved_findings,
         )
@@ -256,10 +280,27 @@ class RuleEngine:
                 None,
             )
             state = "opened"
+            confirmation_count = 1
             if match_index is not None:
-                unmatched_previous.pop(match_index)
+                previous = unmatched_previous.pop(match_index)
                 state = "ongoing"
-            active.append(self._with_metadata(finding, lifecycle_state=state))
+                confirmation_count = int(
+                    previous.metadata.get("confirmation_count", 1)
+                ) + 1
+            confirmation_required = self._confirmation_required(finding)
+            active.append(
+                self._with_metadata(
+                    finding,
+                    lifecycle_state=state,
+                    confirmation_count=confirmation_count,
+                    confirmation_required=confirmation_required,
+                    confirmation_status=(
+                        "confirmed"
+                        if confirmation_count >= confirmation_required
+                        else "observing"
+                    ),
+                )
+            )
         resolved = [
             self._with_metadata(
                 previous,
@@ -270,6 +311,23 @@ class RuleEngine:
         ]
         self._active_findings = active
         return active, resolved
+
+    def _confirmation_required(self, event: SafetyEvent) -> int:
+        """Return consecutive observations required before event emission."""
+        # A still image has no temporal evidence to accumulate. Its explicit
+        # detections remain immediately reviewable for backwards compatibility.
+        if event.source_type == "image":
+            return 1
+        configured = self.rules_config.get("confirmation_frames", 1)
+        if isinstance(configured, dict):
+            raw_value = configured.get(event.event_type, configured.get("default", 1))
+        else:
+            raw_value = configured
+        if isinstance(raw_value, bool) or not isinstance(raw_value, int) or raw_value < 1:
+            raise ValueError(
+                "rules_config.confirmation_frames values must be positive integers"
+            )
+        return raw_value
 
     def _build_ppe_event(
         self,
@@ -456,6 +514,17 @@ class RuleEngine:
         }
         if invalid:
             raise ValueError(f"Invalid risk-level overrides: {invalid}")
+
+    def _bounded_config_float(self, name: str, default: float) -> float:
+        value = self.rules_config.get(name, default)
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not isfinite(float(value))
+            or not 0.0 <= float(value) <= 1.0
+        ):
+            raise ValueError(f"rules_config.{name} must be a finite value between 0 and 1")
+        return float(value)
 
     def _with_metadata(self, event: SafetyEvent, **updates: Any) -> SafetyEvent:
         """Return a copy of the event with updated metadata."""

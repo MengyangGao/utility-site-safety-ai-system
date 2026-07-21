@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from time import perf_counter
 
 import cv2
 import numpy as np
@@ -11,6 +12,7 @@ import numpy as np
 from ..detection.yolo_detector import YoloDetector
 from ..events.event import SafetyEvent
 from ..events.summary import write_summary
+from ..monitoring import MonitoringProfile, MonitoringQuality
 from ..privacy.face_blur import blur_faces
 from ..rules.rule_engine import RuleEngine
 from ..tracking.simple_tracker import SimpleTracker
@@ -41,6 +43,7 @@ def run_image_pipeline(
     run_id: str | None = None,
     overwrite: bool = False,
     audit_source: str | None = None,
+    monitoring_profile: MonitoringProfile | None = None,
 ) -> tuple[np.ndarray, list[SafetyEvent]]:
     """Run image inference and persist an immutable, auditable run.
 
@@ -55,7 +58,10 @@ def run_image_pipeline(
     if image is None or image.size == 0:
         raise ValueError(f"Could not decode image: {source_path}")
 
-    engine = rule_engine or RuleEngine(zones=zones)
+    engine = rule_engine or RuleEngine(
+        zones=zones,
+        rules_config=(monitoring_profile.rule_config() if monitoring_profile else None),
+    )
     output_paths = OutputPaths(output_root, run_id=run_id, overwrite=overwrite)
     safe_source = redact_source(
         audit_source if audit_source is not None else source_path,
@@ -74,15 +80,26 @@ def run_image_pipeline(
                 "cooldown_seconds": engine.cooldown_seconds,
                 "rules_config": engine.rules_config,
             },
+            "monitoring_profile": (
+                monitoring_profile.manifest() if monitoring_profile else {"name": "custom"}
+            ),
         },
     )
 
     try:
-        artifacts = RunArtifacts(output_paths)
+        artifacts = RunArtifacts(
+            output_paths,
+            association_min_score=engine.association_min_score,
+            association_ambiguity_margin=engine.association_ambiguity_margin,
+        )
+        quality = MonitoringQuality()
         reset_tracking = getattr(detector, "reset_tracking", None)
         if callable(reset_tracking):
             reset_tracking()
+        frame_started = perf_counter()
+        inference_started = perf_counter()
         detections = detector.predict(image)
+        inference_seconds = perf_counter() - inference_started
         # Assign stable IDs so person-level compliance and summaries are useful.
         detections = SimpleTracker(iou_threshold=0.1).update(detections)
         display_image = blur_faces(
@@ -122,7 +139,16 @@ def run_image_pipeline(
             source_path=safe_source,
             metadata=shared_metadata,
         )
+        quality.observe(
+            detections,
+            evaluation,
+            inference_seconds=inference_seconds,
+            pipeline_seconds=perf_counter() - frame_started,
+            association_min_score=engine.association_min_score,
+            association_ambiguity_margin=engine.association_ambiguity_margin,
+        )
         write_summary(updated_events, output_paths.events)
+        quality.write(output_paths.root)
         output_paths.complete_manifest(
             metrics={
                 "frames_processed": 1,

@@ -2,14 +2,14 @@
 
 **Auditable computer vision for utility and construction worksite safety — not another helmet-detection toy.**
 
-Utility Site Safety AI v1.1 turns image, video, webcam, and RTSP inputs into localized hazard findings, privacy-protected evidence, immutable run artifacts, and reviewable CSV/JSONL reports. It is designed as a serious engineering portfolio and proof-of-concept for substations, electrical maintenance, renewable-energy sites, EV infrastructure, and civil works.
+Utility Site Safety AI v2.0 turns image, video, webcam, and RTSP inputs into localized hazard findings, temporally confirmed alerts, privacy-protected evidence, immutable run artifacts, and reviewable CSV/JSONL reports. It is designed as a serious engineering portfolio and proof-of-concept for substations, electrical maintenance, renewable-energy sites, EV infrastructure, and civil works.
 
 > [!IMPORTANT]
 > This is an educational and engineering demonstration prototype. It is not certified for safety-critical deployment, does not guarantee worker safety, and does not replace a safety officer. Human review is required; false positives and false negatives are expected.
 
 ![PPE-enabled video inference with normalized work zones, temporary tracking, privacy blur, and active event summary](docs/assets/annotated-video-frame-2.jpg)
 
-*Real Pexels construction video, local PPE checkpoint, pixelated face redaction enabled. The v1.1 acceptance run processed 120 frames, wrote 468 detections, emitted two spatially distinct zone events, and saved two evidence snapshots.*
+*Real construction video, local PPE checkpoint, pixelated face redaction enabled. The v2 acceptance run processed the complete 75-frame clip, wrote 438 detections, retained one stable track, and emitted one confirmed zone event instead of frame-level alert spam.*
 
 | Clean-clone person + zone mode | PPE-enabled image mode |
 |---|---|
@@ -20,8 +20,10 @@ Release-media provenance, run IDs, model hashes, and license boundaries are reco
 ## Why this project is different
 
 - **Honest model capability:** a clean clone runs person + restricted-zone monitoring with COCO-pretrained YOLO11n. PPE claims activate only when the selected model actually exposes PPE classes.
-- **Person-level decisions:** positive and negative PPE boxes must associate to a detected person, contradictory evidence is resolved deterministically, and unobserved PPE remains `unknown` rather than being called a violation.
-- **Operational events, not frame spam:** active findings are separated from cooldown-filtered events; spatial continuity prevents short tracker-ID switches from bypassing cooldown, and findings expose opened/ongoing/resolved lifecycle state.
+- **Person-level decisions:** positive and negative PPE boxes use containment, expected body region, horizontal alignment, and ambiguity rejection. Contradictory evidence is resolved deterministically, and unobserved PPE remains `unknown` rather than being called a violation.
+- **Operational events, not frame spam:** video findings must survive profile-controlled consecutive-frame confirmation before becoming events. Active, provisional, confirmed, cooldown-filtered, and resolved states remain distinct.
+- **Motion-aware continuity:** the fallback tracker uses globally ranked motion prediction and centre proximity, reducing avoidable ID fragmentation after short misses or moderate movement.
+- **Measurable run health:** every successful run writes `quality.json` and `quality.csv` with tracking coverage, PPE assignment coverage, temporal filtering, and effective throughput—explicitly labelled as operational indicators rather than ground-truth accuracy.
 - **Audit-first outputs:** each run has input/model/output hashes, runtime and Git provenance, logs, summaries, detections, compliance state, media artifacts, and a collision-resistant run ID.
 - **Practical interfaces:** CLI, Streamlit, image/video pipelines, webcam/RTSP ingestion, normalized zone editing, report downloads, model training, validation, benchmarking, and export.
 
@@ -51,22 +53,22 @@ Image / Video / Webcam / RTSP
    class-aware confidence floors
               │
               ▼
-  tracker (Ultralytics or IoU fallback)
+ tracker (Ultralytics or motion-aware fallback)
               │
         ┌─────┴──────────┐
         ▼                ▼
 person ↔ PPE          zone geometry
- association      pixel or normalized
+body-aware link    pixel or normalized
         └─────┬──────────┘
               ▼
        safety rule engine
-  active findings + new events
+ provisional → confirmed → event
               │
         privacy processing
               │
       ┌───────┼───────────┐
       ▼       ▼           ▼
- annotations  evidence    audit logs
+ annotations  evidence    audit + quality
  image/video  snapshots   CSV/JSONL/manifest
 ```
 
@@ -76,20 +78,21 @@ See [`docs/architecture.md`](docs/architecture.md) for lifecycle, trust boundari
 
 - Image, video, webcam, device-path, and RTSP inference
 - Person and optional PPE detection through Ultralytics YOLO
-- Person-PPE association with positive/negative conflict resolution
+- Body-region-aware person-PPE association with ambiguity rejection and conflict resolution
 - Restricted zones in pixel or resolution-independent normalized coordinates
 - Per-zone risk, dwell time, and required-PPE policy fields
 - Deterministic `low` / `medium` / `high` / `critical` escalation
-- Cooldown-based event de-duplication without hiding active findings
-- Spatial event continuity across short tracker-ID changes
+- Profile-controlled temporal confirmation plus cooldown de-duplication without hiding active findings
+- Motion-aware fallback tracking and spatial event continuity across short tracker-ID changes
 - Temporary per-stream track IDs; no identity recognition
 - Explicit/local face localization with Gaussian, pixelated, or solid redaction and a compact head fallback
 - Event, detection, compliance, and aggregate logs in JSONL and CSV
 - Annotated image/video and event snapshots
 - Run manifests with artifact size and SHA-256 inventory
+- Per-run `quality.json` / `quality.csv` operational diagnostics
 - Failed-run manifests and atomic `latest.json` publication for successful runs
 - English, Simplified Chinese, and Traditional Chinese annotations/UI
-- Streamlit control room with complete/preview video modes, progress, one-click sample, zone editor, trusted-model profiles, incident review queue, compliance timeline, and complete ZIP downloads
+- Modular Streamlit operator console with monitoring profiles, complete/preview video modes, one-click sample, normalized zone policy, evidence timeline, quality panel, incident review, and complete ZIP downloads
 - Automatic Web artifact retention (24 hours / 20 sessions) and trusted-model-only hosted mode
 - Optional privacy-conscious JSON webhook delivery and `doctor` environment diagnostics
 - Custom PPE training, validation artifacts, device benchmark, and model export
@@ -139,6 +142,7 @@ utility-safety-ai infer-image \
   --model models/yolo11n.pt \
   --zones examples/zones_construction_zone_01.yaml \
   --output outputs/quickstart \
+  --profile balanced \
   --blur-faces
 ```
 
@@ -159,6 +163,8 @@ outputs/quickstart/
 └── runs/
     └── <run-id>/
         ├── manifest.json
+        ├── quality.json
+        ├── quality.csv
         ├── images/<source>_annotated.jpg
         ├── videos/<source>_annotated.mp4
         ├── snapshots/<event-id>.jpg
@@ -184,6 +190,7 @@ utility-safety-ai infer-image \
   --source path/to/image.jpg \
   --zones examples/zones_solar_inspection_pexels_4254172.yaml \
   --output outputs/image \
+  --profile balanced \
   --blur-faces
 ```
 
@@ -195,12 +202,17 @@ utility-safety-ai infer-video \
   --model models/yolo11n.pt \
   --zones examples/zones_construction_rebar_pexels_10294768.yaml \
   --output outputs/video \
+  --profile balanced \
   --blur-faces \
   --privacy-mode pixelate
 ```
 
 Video processing is complete by default. Add `--max-frames` only when an explicitly bounded preview
 is intended; the manifest records the selected limit.
+
+Three presets expose the trade-off instead of hiding it: `balanced` is the default,
+`high_precision` requires stronger and longer evidence, and `high_sensitivity` surfaces weaker
+evidence sooner. Images remain immediately reviewable because they cannot accumulate temporal evidence.
 
 ### Webcam or RTSP
 
@@ -251,22 +263,20 @@ Run `utility-safety-ai --help` or `utility-safety-ai <command> --help` for all t
 streamlit run app.py
 ```
 
-![Streamlit workbench with portable model path and privacy enabled by default](docs/assets/web-dashboard.jpg)
-
 The Web UI provides:
 
 - Image/video upload and browser camera snapshots
-- Bounded RTSP/device processing and a live preview mode
+- Bounded RTSP/device processing with auditable saved video
 - Per-session private output roots, 24-hour/20-session disk retention, and the latest 20 in-session runs
-- Verified model profiles, optional trusted custom path, device, confidence, IoU, cooldown, and privacy controls
+- Balanced/high-precision/high-sensitivity monitoring profiles
+- Verified model profiles, optional trusted custom path, explicit CPU-first device selection, confidence, IoU, cooldown, and privacy controls
 - Privacy redaction enabled by default with Gaussian, pixelated, and solid modes
-- Visual-table and YAML editors for normalized zones
-- Resolution-aware zone preview and downloadable zone YAML
-- Annotated results, filtered risk/event tables, detection charts, PPE compliance, and evidence snapshots
+- Normalized YAML policy editor, resolution-aware zone preview, and downloadable policy
+- Commercial-style four-stage console: input, policy, analysis, and evidence review
+- Annotated results, quality indicators, event review decisions, and evidence snapshots
 - Model classes, capabilities, device, and checkpoint SHA-256 when available
-- Incident acknowledgement/investigation/resolution/false-positive review states with assignee and notes
-- Latest-state and full-timeline compliance views
-- CSV/JSONL, separate core/Web manifests, review state, annotated media, and a complete ZIP download
+- Confirmed/false-positive/follow-up review states with operator notes
+- CSV/JSONL logs, manifest, quality diagnostics, review state, annotated media, and a complete ZIP download
 
 RTSP fields are masked in the UI. The application also sanitizes credentials in persisted text artifacts, but operators must still protect local files, shell history, footage, and network access.
 

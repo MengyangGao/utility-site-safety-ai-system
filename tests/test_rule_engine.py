@@ -241,6 +241,65 @@ def test_zone_dwell_delays_intrusion_until_threshold():
     assert events[0].metadata["time_in_zone_seconds"] == 2.0
 
 
+def test_video_ppe_event_requires_consecutive_confirmation():
+    engine = RuleEngine(
+        zones=[],
+        rules_config={"confirmation_frames": {"default": 3}},
+    )
+    detections = [
+        _det("person", (0, 0, 40, 80), track_id=1),
+        _det("no_helmet", (10, 4, 30, 25)),
+    ]
+
+    first = engine.evaluate_frame(detections, "video", "test.mp4", time_seconds=0.0)
+    second = engine.evaluate_frame(detections, "video", "test.mp4", time_seconds=0.1)
+    third = engine.evaluate_frame(detections, "video", "test.mp4", time_seconds=0.2)
+
+    assert first.new_events == second.new_events == []
+    assert first.provisional_findings[0].metadata["confirmation_count"] == 1
+    assert second.provisional_findings[0].metadata["confirmation_count"] == 2
+    assert third.provisional_findings == []
+    assert len(third.confirmed_findings) == len(third.new_events) == 1
+    assert third.new_events[0].metadata["confirmation_count"] == 3
+
+
+def test_provisional_false_positive_resets_before_confirmation():
+    engine = RuleEngine(
+        zones=[],
+        rules_config={"confirmation_frames": {"default": 3}},
+    )
+    detections = [
+        _det("person", (0, 0, 40, 80), track_id=1),
+        _det("no_helmet", (10, 4, 30, 25)),
+    ]
+
+    assert engine.evaluate(detections, "video", "test.mp4", time_seconds=0.0) == []
+    cleared = engine.evaluate_frame([], "video", "test.mp4", time_seconds=0.1)
+    assert cleared.resolved_findings[0].metadata["confirmation_status"] == "observing"
+    restarted = engine.evaluate_frame(
+        detections, "video", "test.mp4", time_seconds=0.2
+    )
+    assert restarted.active_findings[0].metadata["confirmation_count"] == 1
+
+
+def test_image_evidence_remains_immediate_with_temporal_profile():
+    engine = RuleEngine(
+        zones=[],
+        rules_config={"confirmation_frames": {"default": 5}},
+    )
+    events = engine.evaluate(
+        [
+            _det("person", (0, 0, 40, 80), track_id=1),
+            _det("no_helmet", (10, 4, 30, 25)),
+        ],
+        "image",
+        "test.jpg",
+    )
+
+    assert len(events) == 1
+    assert events[0].metadata["confirmation_required"] == 1
+
+
 def test_zone_dwell_resets_after_person_leaves():
     dwell_zone = Zone(
         id="dwell",

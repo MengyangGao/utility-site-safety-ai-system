@@ -225,8 +225,16 @@ def opencv_display_available() -> bool:
 class RunArtifacts:
     """Persist frame-level audit evidence using a single shared implementation."""
 
-    def __init__(self, output_paths: OutputPaths) -> None:
+    def __init__(
+        self,
+        output_paths: OutputPaths,
+        *,
+        association_min_score: float = 0.28,
+        association_ambiguity_margin: float = 0.08,
+    ) -> None:
         self.paths = output_paths
+        self.association_min_score = association_min_score
+        self.association_ambiguity_margin = association_ambiguity_margin
         self.event_logger = EventLogger(output_paths.events)
         self.detection_logger = DetectionLogger(output_paths.events)
         self._initialize_compliance_files(output_paths.events)
@@ -246,7 +254,11 @@ class RunArtifacts:
     ) -> list[SafetyEvent]:
         """Save snapshots, events, detections, and changed compliance state."""
         updated_events = [self._with_snapshot(image, event) for event in events]
-        compliance_records, _ = associate_ppe_to_persons(detections)
+        compliance_records, _ = associate_ppe_to_persons(
+            detections,
+            iou_threshold=self.association_min_score,
+            ambiguity_margin=self.association_ambiguity_margin,
+        )
         self.compliance_reporter.write(
             compliance_records,
             frame_index=frame_index,

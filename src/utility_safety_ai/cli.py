@@ -20,6 +20,7 @@ from .detection.yolo_detector import YoloDetector
 from .events.report import export_report
 from .events.summary import aggregate_events
 from .i18n import SUPPORTED_LANGUAGES, set_language
+from .monitoring.profiles import get_monitoring_profile, monitoring_profile_names
 from .notifications import deliver_webhook
 from .pipelines.camera_pipeline import run_camera_pipeline
 from .pipelines.image_pipeline import run_image_pipeline
@@ -31,8 +32,6 @@ from .zones.zone_loader import load_zones
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CONF = 0.25
-DEFAULT_IOU = 0.45
 DEFAULT_COOLDOWN = 10.0
 T = TypeVar("T")
 
@@ -104,17 +103,22 @@ def _common_inference_options(function):
         click.option("--output", default="outputs", type=click.Path(path_type=Path), help="Output root."),
         click.option(
             "--conf",
-            default=DEFAULT_CONF,
+            default=None,
             type=click.FloatRange(0.0, 1.0),
-            show_default=True,
-            help="Confidence threshold in [0, 1].",
+            help="Confidence threshold in [0, 1]. Defaults to the selected monitoring profile.",
         ),
         click.option(
             "--iou",
-            default=DEFAULT_IOU,
+            default=None,
             type=click.FloatRange(0.0, 1.0),
+            help="NMS IoU threshold in [0, 1]. Defaults to the selected monitoring profile.",
+        ),
+        click.option(
+            "--profile",
+            type=click.Choice(monitoring_profile_names()),
+            default="balanced",
             show_default=True,
-            help="NMS IoU threshold in [0, 1].",
+            help="Monitoring trade-off preset.",
         ),
         click.option("--device", default=None, help="Inference device (cpu, mps, cuda, etc.)."),
         click.option("--blur-faces", is_flag=True, help="Blur privacy-sensitive regions."),
@@ -163,8 +167,9 @@ def infer_image(
     model: str | None,
     zones: Path | None,
     output: Path,
-    conf: float,
-    iou: float,
+    conf: float | None,
+    iou: float | None,
+    profile: str,
     device: str | None,
     blur_faces: bool,
     privacy_mode: str,
@@ -177,9 +182,19 @@ def infer_image(
     effective_run_id = _effective_run_id(run_id)
 
     def operation():
+        selected_profile = get_monitoring_profile(profile)
         zone_list = load_zones(zones)
-        detector = YoloDetector(model_path=model, device=device, conf=conf, iou=iou)
-        engine = RuleEngine(zones=zone_list, cooldown_seconds=cooldown)
+        detector = YoloDetector(
+            model_path=model,
+            device=device,
+            conf=conf if conf is not None else selected_profile.confidence,
+            iou=iou if iou is not None else selected_profile.nms_iou,
+        )
+        engine = RuleEngine(
+            zones=zone_list,
+            cooldown_seconds=cooldown,
+            rules_config=selected_profile.rule_config(),
+        )
         return run_image_pipeline(
             source_path=source,
             output_root=output,
@@ -190,6 +205,7 @@ def infer_image(
             privacy_mode=privacy_mode,
             run_id=effective_run_id,
             overwrite=overwrite,
+            monitoring_profile=selected_profile,
         )
 
     _, events = _run_checked(operation)
@@ -211,8 +227,9 @@ def infer_video(
     model: str | None,
     zones: Path | None,
     output: Path,
-    conf: float,
-    iou: float,
+    conf: float | None,
+    iou: float | None,
+    profile: str,
     device: str | None,
     blur_faces: bool,
     privacy_mode: str,
@@ -226,9 +243,19 @@ def infer_video(
     effective_run_id = _effective_run_id(run_id)
 
     def operation():
+        selected_profile = get_monitoring_profile(profile)
         zone_list = load_zones(zones)
-        detector = YoloDetector(model_path=model, device=device, conf=conf, iou=iou)
-        engine = RuleEngine(zones=zone_list, cooldown_seconds=cooldown)
+        detector = YoloDetector(
+            model_path=model,
+            device=device,
+            conf=conf if conf is not None else selected_profile.confidence,
+            iou=iou if iou is not None else selected_profile.nms_iou,
+        )
+        engine = RuleEngine(
+            zones=zone_list,
+            cooldown_seconds=cooldown,
+            rules_config=selected_profile.rule_config(),
+        )
         return run_video_pipeline(
             source_path=source,
             output_root=output,
@@ -240,6 +267,7 @@ def infer_video(
             max_frames=max_frames,
             run_id=effective_run_id,
             overwrite=overwrite,
+            monitoring_profile=selected_profile,
         )
 
     events = _run_checked(operation)
@@ -313,8 +341,9 @@ def infer_camera(
     model: str | None,
     zones: Path | None,
     output: Path,
-    conf: float,
-    iou: float,
+    conf: float | None,
+    iou: float | None,
+    profile: str,
     device: str | None,
     blur_faces: bool,
     privacy_mode: str,
@@ -330,9 +359,19 @@ def infer_camera(
     effective_run_id = _effective_run_id(run_id)
 
     def operation():
+        selected_profile = get_monitoring_profile(profile)
         zone_list = load_zones(zones)
-        detector = YoloDetector(model_path=model, device=device, conf=conf, iou=iou)
-        engine = RuleEngine(zones=zone_list, cooldown_seconds=cooldown)
+        detector = YoloDetector(
+            model_path=model,
+            device=device,
+            conf=conf if conf is not None else selected_profile.confidence,
+            iou=iou if iou is not None else selected_profile.nms_iou,
+        )
+        engine = RuleEngine(
+            zones=zone_list,
+            cooldown_seconds=cooldown,
+            rules_config=selected_profile.rule_config(),
+        )
         return run_camera_pipeline(
             source=source,
             output_root=output,
@@ -346,6 +385,7 @@ def infer_camera(
             display=display,
             run_id=effective_run_id,
             overwrite=overwrite,
+            monitoring_profile=selected_profile,
         )
 
     events = _run_checked(operation)

@@ -1,231 +1,199 @@
-# Utility Site Safety AI — v1.1 Release Readiness Report
+# Utility Site Safety AI — v2.0 Verification Report
 
-**Report date:** 2026-07-13
+**Report date:** 2026-07-22
 
-**Target environment:** Miniconda, Python 3.11
+**Reference environment:** Miniconda `utility-safety-ai`, Python 3.11.15, Apple Silicon macOS
+**Status:** v2.0 source, package, real-media workflows, and operator console verified for public portfolio use; not certified for field deployment
 
-**Release status:** v1.1 portfolio release verified on the 2026-07-13 target machine; ready for public portfolio publication, but not certified for field deployment
+## Executive result
 
-## Executive assessment
+The project has been refactored around two outcomes: higher monitoring quality and a substantially
+more polished operator experience. The v2 implementation replaces geometry-only PPE assignment,
+single-frame video alerts, an iteration-order fallback tracker, and a 1,522-line Streamlit script
+with body-aware association, temporal confirmation, motion-aware global tracking, explicit run-health
+diagnostics, and a modular commercial-style evidence console.
 
-Utility Site Safety AI has moved beyond a single-class vision demo into an audit-oriented worksite safety prototype. It now has image, video, webcam, device, and RTSP ingestion; model-aware person/PPE behavior; resolution-independent restricted zones; temporary tracking; deterministic rules; privacy-protected evidence; run-scoped manifests; CLI and Web workflows; and offline tests.
+The result remains an engineering prototype. The software gates pass, but the local PPE checkpoint
+does not pass the documented field-promotion model gate. Human review, site-specific data, camera
+calibration, privacy governance, cybersecurity controls, and operational validation remain mandatory.
 
-The engineering direction is suitable for a strong open-source portfolio, technical demo, and controlled proof-of-concept. It is not production-certified and must not be represented as a substitute for safety professionals, camera calibration, cybersecurity controls, privacy governance, or site-specific model validation.
+## Monitoring-quality refactor
 
-## Delivered scope
+### Body-aware PPE association
 
-### Detection and model handling
+- Scores PPE/person links with item containment, expected vertical body region, horizontal alignment,
+  centre containment, and overlap.
+- Rejects ambiguous links when the two best people score too closely instead of silently guessing.
+- Keeps deterministic positive/negative conflict resolution and `unknown` for absent evidence.
+- Records association coverage as an operational diagnostic, not as a model-accuracy claim.
 
-- Ultralytics YOLO adapter for CPU, Apple MPS, or CUDA when available
-- A global confidence floor enforced for every class, followed by stricter class-aware floors
-- Local model discovery plus explicit model selection
-- Reproducible `fetch-model` command with checkpoint SHA-256 metadata
-- Clean-clone COCO person detection and restricted-zone operation
-- Optional custom PPE checkpoints and training wrapper
-- Model validation, benchmarking, and deployment-format export helpers
+### Temporal alert confirmation
 
-### Safety reasoning
+- Separates active, provisional, confirmed, newly emitted, and resolved findings.
+- Adds `confirmation_count`, `confirmation_required`, and `confirmation_status` to event metadata.
+- Keeps still-image findings immediate; only temporal sources accumulate consecutive evidence.
+- Provides three explicit presets:
 
-- Person-PPE association using geometric containment/overlap
-- Per-PPE positive/negative conflict resolution independent of detector order
-- One resolved violation per distinct PPE type
-- `unknown` state for unobserved PPE instead of fabricated violations
-- Pixel and normalized polygons with strict validation
-- Per-zone risk, dwell time, and required-PPE fields
-- Bottom-center intrusion geometry
-- Deterministic escalation across `low`, `medium`, `high`, and `critical`
-- Separation of current active findings from cooldown-filtered new events
+| Profile | PPE confirmation | Zone confirmation | Intended trade-off |
+|---|---:|---:|---|
+| `balanced` | 3 frames | 2 frames | Everyday review stability |
+| `high_precision` | 5 frames | 3 frames | Fewer interruptions, stronger evidence |
+| `high_sensitivity` | 2 frames | 1 frame | Earlier investigation, higher recall bias |
 
-### Tracking and live inputs
+### Motion-aware fallback tracking
 
-- Ultralytics tracking when available and IoU fallback tracking
-- Per-run tracker reset and empty-frame aging
-- Temporary stream-local IDs only; no identity recognition
-- Video, webcam, device-path, and RTSP processing
-- Monotonic timing and bounded reconnect behavior for live sources
-- Credential redaction in persisted source identifiers
+- Uses bounded linear prediction, IoU, and normalized centre distance.
+- Ranks all track/detection candidates globally to avoid iteration-order detection stealing.
+- Preserves upstream Ultralytics IDs, ages short misses, and remains temporary/run-local only.
+- Does not perform identity recognition, re-identification, or cross-camera tracking.
 
-### Audit outputs
+### Run health evidence
 
-- Immutable-by-default `outputs/<root>/runs/<run-id>/` layout
-- Atomic `latest.json` pointer updated only by completed runs
-- `manifest.json` with source/config/model context and artifact inventory
-- SHA-256 and size for each completed artifact
-- Failed-run manifest without replacing the last successful pointer
-- Event, detection, compliance, and summary logs in CSV and JSONL
-- Annotated images/videos and event evidence snapshots
-- Explicit `--overwrite` requirement for run ID reuse
+Every successful image, video, and camera run now includes `quality.json` and `quality.csv` with:
 
-### Privacy and visualization
+- tracked-person observation rate;
+- PPE assignment rate and unassociated PPE count;
+- provisional and confirmed finding observations;
+- temporal filter rate;
+- inference and effective processing throughput;
+- explicit interpretation text preventing these indicators from being mistaken for accuracy.
 
-- Privacy processing before saved media and snapshots
-- Exact face-region blur when face detections are associated
-- Conservative upper-person fallback only when no face is associated
-- No face recognition or persistent identity store
-- Resolution-correct normalized zone overlays
-- Bilingual/CJK-capable annotation rendering with batched frame conversion
+## Operator-console refactor
 
-### Web experience
+The root `app.py` is now a five-line entry point. Product configuration, session isolation, visual
+theme, inference services, orchestration, result rendering, and review persistence live in focused
+`utility_safety_ai.web` modules.
 
-- Image/video upload, browser camera snapshot, RTSP/device processing, and live preview
-- Per-session output directory and bounded run history
-- Privacy blur enabled by default
-- Normalized zone table/YAML editor and visual preview
-- Model class/capability/hash display
-- Annotated media, event filters, detection charts, compliance table, evidence gallery
-- Individual CSV/JSONL/manifest downloads and report ZIP
-- English, Simplified Chinese, and Traditional Chinese UI support
+The interface now provides:
 
-## Clean environment setup
+- a four-stage input → policy → analysis → review mental model;
+- an industrial dark visual system with amber safety accents, responsive cards, and consistent spacing;
+- balanced/high-precision/high-sensitivity monitoring profiles;
+- verified model profiles plus an explicitly warned advanced custom path;
+- CPU as the dependable default, with Auto, Apple MPS, and CUDA as explicit alternatives;
+- privacy blur enabled by default and three redaction styles;
+- image, complete/preview video, browser snapshot, camera, and RTSP workflows;
+- normalized zone policy editing and visual preview;
+- evidence media, run integrity, checkpoint hash, quality indicators, event review, operator notes,
+  complete audit ZIP download, and private session history.
 
-```bash
-conda env create -f environment.yml
-conda activate utility-safety-ai
-pip install -e ".[dev]"
-```
+The browser acceptance pass exposed a real issue: automatic Apple MPS selection could spend too long
+in first-use initialization on the target machine. The final interface therefore defaults to CPU,
+matching the project's documented clean-clone reliability requirement while retaining explicit
+accelerator choices.
 
-Optional deterministic general-model fetch:
+## Final verification gates
 
-```bash
-utility-safety-ai fetch-model --model yolo11n.pt --output models
-```
-
-## Final verification record
-
-These results were recorded on the rebuilt target environment: Python 3.11.15, PyTorch 2.13.0,
-Ultralytics 8.4.92, OpenCV 4.11, and Streamlit 1.59.1 on Apple Silicon macOS.
-
-| Gate | Command | Final result |
+| Gate | Command | Result |
 |---|---|---|
-| Dependency consistency | `python -m pip check` | Passed — `No broken requirements found` |
-| Offline tests + package coverage | `pytest -q --cov=utility_safety_ai --cov-report=term-missing --cov-fail-under=70` | Passed — 136 tests; 80.56% package coverage |
-| Lint | `ruff check .` | Passed — all checks |
-| Types | `mypy src/utility_safety_ai` | Passed — 42 source files |
-| Web syntax/import | `python -m py_compile app.py` | Passed |
-| Package build | `python -m build` | Passed — sdist and wheel created |
-| Wheel install smoke | isolated venv + `pip install --no-deps dist/*.whl` + CLI/doctor | Passed — wheel version 1.1.0; CLI and diagnostics exited 0 |
-| Streamlit | headless startup and Streamlit AppTest | Passed — modern control surface and required controls rendered without script exceptions; local browser navigation was blocked by the host safety policy |
+| Environment version | editable reinstall + metadata check | Passed — distribution and package both `2.0.0` |
+| Dependencies | `python -m pip check` | Passed — no broken requirements |
+| Tests and coverage | `pytest -q --cov=utility_safety_ai --cov-report=term-missing --cov-fail-under=70` | Passed — 146 tests, 76.78% coverage |
+| Lint | `ruff check .` | Passed |
+| Types | `mypy src/utility_safety_ai` | Passed — 52 source files |
+| Web syntax | `python -m py_compile app.py` | Passed |
+| Workflow syntax | `actionlint .github/workflows/ci.yml` | Passed |
+| Distribution build | `python -m build --no-isolation` | Passed — sdist and wheel |
+| Wheel smoke | isolated system-site venv, wheel install, import/version, CLI help | Passed — imported from isolated venv as `2.0.0` |
+| Streamlit smoke | `Streamlit AppTest` | Passed — required controls rendered, privacy default ON |
+| Browser visual/interaction | local headless server + real in-app browser | Passed — console, one-click sample, result navigation, quality, bundle, and review controls |
 
-The build artifacts are `dist/utility_safety_ai-1.1.0.tar.gz` and
-`dist/utility_safety_ai-1.1.0-py3-none-any.whl`.
+Built artifacts:
 
-## Recorded demo acceptance
+- `dist/utility_safety_ai-2.0.0.tar.gz`
+- `dist/utility_safety_ai-2.0.0-py3-none-any.whl`
 
-The clean-clone person + zone path was recorded with:
+## Recorded real-media acceptance
+
+### PPE image
 
 ```bash
 utility-safety-ai infer-image \
-  --source examples/sample_images/construction_zone_01.jpg \
-  --model models/yolo11n.pt \
-  --zones examples/zones_construction_zone_01.yaml \
-  --output outputs/v1.1-release \
-  --run-id clean-image \
-  --overwrite \
+  --source examples/sample_images/construction_site_ppe_01.jpg \
+  --model models/ppe_yolo11n.pt \
+  --zones examples/zones_construction_site_ppe_01.yaml \
+  --output outputs/v2-acceptance \
+  --run-id ppe-image \
+  --device cpu \
+  --profile balanced \
+  --privacy-mode pixelate \
   --blur-faces
 ```
 
-It completed with three detections, one zone event, one privacy-protected evidence snapshot, an
-annotated image, CSV/JSONL logs, summaries, and a completed manifest under
-`outputs/v1-release/runs/clean-image/`. The default COCO checkpoint validates person + zone behavior
-only; it is not evidence of PPE capability.
+Result: one frame, eight detections, one confirmed zone event, one privacy-processed snapshot,
+completed manifest, all CSV/JSONL logs, annotated image, and quality artifacts under
+`outputs/v2-acceptance/runs/ppe-image/`. Tracking and PPE assignment coverage were both 100% for
+this frame; that describes pipeline linkage only, not ground-truth accuracy.
 
-The real-video PPE path was recorded with:
+### PPE video
 
 ```bash
 utility-safety-ai infer-video \
-  --source examples/sample_videos/construction_rebar_pexels_10294768.mp4 \
+  --source examples/sample_videos/construction_ppe_pan.mp4 \
   --model models/ppe_yolo11n.pt \
-  --zones examples/zones_construction_rebar_pexels_10294768.yaml \
-  --output outputs/v1.1-release \
+  --zones examples/zones_construction_site_ppe_01.yaml \
+  --output outputs/v2-acceptance \
   --run-id ppe-video \
-  --overwrite \
-  --max-frames 120 \
+  --device cpu \
+  --profile balanced \
+  --privacy-mode pixelate \
   --blur-faces \
-  --privacy-mode pixelate
+  --max-frames 120
 ```
 
-It completed 120 frames with 468 detections, two spatially distinct zone events, two evidence
-snapshots, all audit logs, and a 1,920 x 1,080 annotated MP4 under
-`outputs/v1.1-release/runs/ppe-video/`. The previous ID 3→8→9→14 fragmentation no longer emitted
-three duplicate alerts inside the 10-second cooldown. A separate PPE image run under
-`outputs/v1.1-release/runs/ppe-image/` completed with eight detections, one zone event, and associated
-positive helmet, vest, gloves, boots, and goggles evidence.
+The source contained 75 decodable frames, all of which were processed. The run wrote 438 detections,
+one confirmed event/snapshot, a validated annotated MP4, and all required logs. Operational quality
+evidence recorded one unique temporary track, 100% tracked-person observation coverage, 100% PPE
+assignment coverage, one provisional finding observation, 74 confirmed finding observations, and
+4.16 effective CPU FPS including annotation and persistence. These are run-health measurements, not
+precision/recall metrics.
 
-## PPE training and evaluation status
+### Browser workflow
 
-The promoted local PPE checkpoint completed 30 epochs on Apple MPS and was independently evaluated
-on CPU against the 143-image, 1,172-instance Construction-PPE validation split.
+The final CPU-default console was loaded in a real browser. The portfolio sample completed, displayed
+one confirmed event, and the workspace then rendered the annotated image, four summary metrics,
+model capabilities and truncated checkpoint hash, quality indicators, complete audit-bundle download,
+evidence snapshot, editable review decision, and operator note field. Desktop visual layout was also
+inspected directly.
 
-| Evidence | Result |
-|---|---:|
-| Checkpoint SHA-256 | `b05d39dba9d9a5a19855b9cc7dc4c613e979a64a280929e593522685c19cefff` |
-| Precision | 0.6903 |
-| Recall | 0.5515 |
-| mAP50 | 0.5786 |
-| mAP50-95 | 0.2860 |
-| Detector-only CPU benchmark | 28.40 FPS / 35.21 ms |
-| Detector-only Apple MPS benchmark | 117.95 FPS / 8.48 ms |
+## Model evidence and capability boundary
 
-Benchmark timings use deterministic 640 x 640 synthetic input, five warm-ups, and 30 timed
-`detector.predict` calls; they exclude decode, tracking, rules, privacy, annotation, logging, and
-encoding. Explicit negative classes remain the principal weakness: `no_boots` recall was zero on
-only four validation instances, and the dataset has no `no_vest` class. The complete metrics,
-per-class results, curves, confusion matrices, environment, training configuration, and prediction
-sample are retained under `docs/model-evaluation/ppe_yolo11n-v1/`. The weight is deliberately local
-and excluded from Git; these claims apply only to the exact checkpoint hash.
+The local checkpoint hash remains:
 
-The v1.1 `model-gate` command was run with required `no_helmet`, `no_vest`, and `no_boots` classes.
-It correctly failed promotion because recall 0.5515 and mAP50 0.5786 missed the sample thresholds,
-`no_helmet` recall was 0.3947, `no_boots` recall was zero, and `no_vest` was absent. The application is
-release-ready as a portfolio prototype; the checkpoint is explicitly not field-ready.
+`b05d39dba9d9a5a19855b9cc7dc4c613e979a64a280929e593522685c19cefff`
 
-## Acceptance matrix
+Its retained validation evidence remains precision 0.6903, recall 0.5515, mAP50 0.5786, and
+mAP50-95 0.2860 on the documented 143-image validation split. `no_boots` recall was zero on four
+instances and `no_vest` is absent from the dataset. The `model-gate` correctly rejects this checkpoint
+for field promotion. The software is portfolio-ready; the checkpoint is not field-ready.
 
-| Requirement | Implementation status | Final evidence status |
-|---|---|---|
-| Fresh Python 3.11 Conda environment | Verified | Rebuilt as `utility-safety-ai`; Python 3.11.15 |
-| Editable package and CLI | Verified | Editable install, sdist/wheel build, isolated wheel smoke passed |
-| Image inference | Verified | `outputs/v1.1-release/runs/ppe-image/` plus retained clean-clone evidence |
-| Video inference | Verified | `ppe-video/`: 120 frames, 468 detections, two events/snapshots |
-| Camera/RTSP inference | Implemented | Hardware/source dependent |
-| Person + zone clean-clone path | Verified | Real image run with general model and high-risk zone event |
-| Optional PPE checkpoint path | Verified locally | Trained, hashed, independently validated; weight not distributed in Git |
-| JSONL/CSV events and detections | Verified | Retained real runs plus offline E2E tests |
-| Compliance and summaries | Verified | Retained real runs plus offline E2E tests |
-| Annotated media and snapshots | Verified | Image/video artifacts visually reviewed |
-| Privacy blur before persistence | Verified | Enabled in all retained release runs and covered by tests |
-| Streamlit Web app | Verified with stated limitation | AppTest, headless startup and static visual QA passed; host policy blocked local-browser navigation |
-| Offline tests | Verified | 136 passed; 80.56% package coverage |
-| Documentation and release policies | Verified | Local Markdown links and release-asset hashes checked |
+## Known limitations
 
-## Known limitations and residual risk
+- COCO YOLO11n supports person and zone monitoring, not PPE.
+- PPE results are limited to the exact selected checkpoint classes and dataset quality.
+- Body-aware 2D association is safer in crowds but can still fail under severe overlap or occlusion.
+- Consecutive-frame confirmation reduces transient alert noise but can delay true alerts by a few frames.
+- Temporary tracking can still fragment after long occlusion, abrupt cuts, or large motion.
+- Zone geometry is image-plane logic, not calibrated 3D distance.
+- Privacy redaction is an aid, not a legal anonymisation guarantee.
+- Camera/RTSP hardware, credentials, network resilience, multi-user authentication, durable alert queues,
+  and external evidence storage require deployment-specific engineering.
+- No software result guarantees worker safety or replaces qualified safety professionals.
 
-- Default YOLO11n is COCO-pretrained and does not detect PPE classes.
-- A custom PPE model exposes only the classes and quality supported by its training data.
-- Explicit negative PPE classes are visually ambiguous and often data-limited.
-- Person-PPE association is box-based and can fail under crowding or occlusion.
-- Tracking is temporary and can change IDs after long occlusion or scene cuts.
-- Zone intrusion is image-plane geometry, not calibrated 3D distance.
-- Local face localization and configurable redaction are not a legal anonymization guarantee and may miss small/profile/occluded faces.
-- RTSP credentials can still leak through shell history, process inspection, external logs, or user screenshots even though application text artifacts are redacted.
-- Export success does not prove exported-model accuracy or performance.
-- A JSON webhook, bounded local retention and incident-review workflow are included. Role-based access control, durable retry queues, fleet management, HA, and safety certification are not.
-- Example assets have mixed license terms with per-file hashes and verified source pages. Review `examples/assets.yaml` before redistribution.
-- The root MIT license covers original project code only; third-party software, weights, datasets, and media retain their own terms.
+## Recommended next work
 
-## Recommended next improvements
-
-1. Collect balanced, site-specific hard-negative PPE data and promote a stronger v2 checkpoint
-   through the same immutable evaluation gate.
-2. Re-verify example-media URLs, hashes, and license terms at each release.
-3. Publish a redistributable PPE checkpoint through the committed model registry when upstream terms permit it; the current evaluated checkpoint remains local-only.
-4. Add hardware-specific exported-model regression tests for ONNX/OpenVINO/TensorRT/CoreML as applicable.
-5. Add authentication, authorization, encryption, durable alert retries and an external evidence store before any multi-user pilot.
-6. Conduct privacy, cybersecurity, licensing, and operational safety reviews with qualified stakeholders.
-7. Validate night, rain, glare, distance, crowding, occlusion, and camera-shift failure modes.
+1. Collect balanced site-specific hard negatives and explicit missing-PPE examples, especially
+   `no_vest` and `no_boots`, then retrain and pass the unchanged promotion gate.
+2. Add a labelled temporal evaluation set measuring event precision, event recall, time-to-alert, and
+   track fragmentation across crowding, glare, rain, night, occlusion, and camera motion.
+3. Calibrate monitoring profiles per deployment only after that labelled evaluation.
+4. Add authenticated multi-user review, encrypted external evidence storage, and durable alert delivery
+   before any controlled pilot.
+5. Run privacy, cybersecurity, licensing, camera-placement, and operational safety reviews with
+   qualified stakeholders.
 
 ## Publication decision
 
-The source repository is ready for public portfolio publication as a v1.1 engineering prototype.
-A real worksite or commercial deployment remains a separate engineering, legal, privacy,
-cybersecurity, licensing, and safety-certification program.
+The v2.0 source is suitable for public portfolio publication and demonstration as an auditable
+engineering prototype. A real worksite or commercial deployment remains a separate model,
+engineering, privacy, cybersecurity, legal, and safety-certification programme.

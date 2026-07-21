@@ -12,6 +12,7 @@ import numpy as np
 from ..detection.yolo_detector import YoloDetector
 from ..events.event import SafetyEvent
 from ..events.summary import write_summary
+from ..monitoring import MonitoringProfile, MonitoringQuality
 from ..privacy.face_blur import blur_faces
 from ..rules.rule_engine import RuleEngine
 from ..tracking.simple_tracker import SimpleTracker
@@ -85,6 +86,7 @@ def run_camera_pipeline(
     reconnect_attempts: int = 3,
     reconnect_delay_seconds: float = 0.5,
     audit_source: str | None = None,
+    monitoring_profile: MonitoringProfile | None = None,
 ) -> list[SafetyEvent]:
     """Run live inference with monotonic timing and credential-safe logging."""
     if duration_seconds is not None and duration_seconds <= 0:
@@ -119,7 +121,10 @@ def run_camera_pipeline(
         fps = 30.0
     height, width = first_frame.shape[:2]
 
-    engine = rule_engine or RuleEngine(zones=zones)
+    engine = rule_engine or RuleEngine(
+        zones=zones,
+        rules_config=(monitoring_profile.rule_config() if monitoring_profile else None),
+    )
     output_paths = OutputPaths(output_root, run_id=run_id, overwrite=overwrite)
     output_paths.start_manifest(
         source_type="camera",
@@ -143,6 +148,9 @@ def run_camera_pipeline(
                 "cooldown_seconds": engine.cooldown_seconds,
                 "rules_config": engine.rules_config,
             },
+            "monitoring_profile": (
+                monitoring_profile.manifest() if monitoring_profile else {"name": "custom"}
+            ),
         },
     )
     out_video_path = output_paths.videos / "camera_annotated.mp4"
@@ -158,12 +166,22 @@ def run_camera_pipeline(
             fps=fps,
             frame_size=(width, height),
         )
-        artifacts = RunArtifacts(output_paths)
+        artifacts = RunArtifacts(
+            output_paths,
+            association_min_score=engine.association_min_score,
+            association_ambiguity_margin=engine.association_ambiguity_margin,
+        )
+        quality = MonitoringQuality()
         engine.reset()
         reset_tracking = getattr(detector, "reset_tracking", None)
         if callable(reset_tracking):
             reset_tracking()
-        fallback_tracker = SimpleTracker()
+        fallback_tracker = SimpleTracker(
+            iou_threshold=(
+                monitoring_profile.tracker_iou_threshold if monitoring_profile else 0.22
+            ),
+            max_age=monitoring_profile.tracker_max_age if monitoring_profile else 12,
+        )
         shared_metadata = {
             "run_id": output_paths.run_id,
             "confidence_threshold": getattr(detector, "conf", None),
@@ -176,13 +194,16 @@ def run_camera_pipeline(
         frame: np.ndarray | None = first_frame
 
         while frame is not None:
+            frame_started = time.perf_counter()
             elapsed = time.monotonic() - started_at
             if duration_seconds is not None and elapsed >= duration_seconds:
                 break
             if max_frames is not None and frame_index >= max_frames:
                 break
 
+            inference_started = time.perf_counter()
             detections = detector.track(frame)
+            inference_seconds = time.perf_counter() - inference_started
             detections = fallback_tracker.update(detections)
             display_frame = blur_faces(
                 frame.copy(),
@@ -216,6 +237,14 @@ def run_camera_pipeline(
                 frame_index=frame_index,
                 time_seconds=elapsed,
                 metadata=shared_metadata,
+            )
+            quality.observe(
+                detections,
+                evaluation,
+                inference_seconds=inference_seconds,
+                pipeline_seconds=time.perf_counter() - frame_started,
+                association_min_score=engine.association_min_score,
+                association_ambiguity_margin=engine.association_ambiguity_margin,
             )
             all_events.extend(updated_events)
             total_detections += len(detections)
@@ -264,6 +293,7 @@ def run_camera_pipeline(
             cv2.destroyAllWindows()
         validate_video_output(out_video_path, expected_frames=frame_index)
         write_summary(all_events, output_paths.events)
+        quality.write(output_paths.root)
         output_paths.complete_manifest(
             metrics={
                 "frames_processed": frame_index,

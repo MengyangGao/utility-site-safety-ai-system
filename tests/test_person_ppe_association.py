@@ -101,6 +101,31 @@ def test_unassociated_ppe_returned_separately():
     assert len(unassociated) == 1
 
 
+def test_crowded_scene_rejects_ambiguous_ppe_instead_of_guessing():
+    left = _det("person", (0, 0, 100, 200), track_id=1)
+    right = _det("person", (80, 0, 180, 200), track_id=2)
+    shared_helmet = _det("helmet", (75, 5, 105, 45))
+
+    records, unassociated = associate_ppe_to_persons([left, right, shared_helmet])
+
+    assert [record.items["helmet"] for record in records] == ["unknown", "unknown"]
+    assert unassociated == [shared_helmet]
+
+
+def test_body_region_prefers_person_with_plausible_ppe_location():
+    # The same box is inside both overlapping people, but it sits at helmet
+    # height for the lower person and boot height for the upper person.
+    upper = _det("person", (0, 0, 100, 200), track_id=1)
+    lower = _det("person", (0, 130, 100, 330), track_id=2)
+    helmet = _det("helmet", (30, 140, 70, 170))
+
+    records, unassociated = associate_ppe_to_persons([upper, lower, helmet])
+
+    assert records[0].items["helmet"] == "unknown"
+    assert records[1].items["helmet"] == "yes"
+    assert unassociated == []
+
+
 def test_compliance_reporter_writes_csv_and_jsonl(tmp_path):
     records, _ = associate_ppe_to_persons(
         [
