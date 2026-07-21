@@ -18,11 +18,15 @@ AUDITED_DIRECTORIES = (
 )
 
 
-def _sha256(path: Path) -> str:
+def _sha256(path: Path, hash_mode: str = "raw") -> str:
     digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
+    if hash_mode == "text-lf":
+        content = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+        digest.update(content)
+    else:
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
     return digest.hexdigest()
 
 
@@ -49,6 +53,7 @@ def audit_provenance(manifest_path: Path, repo_root: Path) -> dict[str, Any]:
         relative_path = str(artifact.get("path", ""))
         license_id = str(artifact.get("license", ""))
         expected_hash = str(artifact.get("sha256", ""))
+        hash_mode = str(artifact.get("hash_mode", "raw"))
         if not relative_path:
             errors.append("Artifact record is missing path")
             continue
@@ -57,10 +62,13 @@ def audit_provenance(manifest_path: Path, repo_root: Path) -> dict[str, Any]:
         recorded.add(relative_path)
         if license_id not in APPROVED_LICENSES:
             errors.append(f"Unapproved license {license_id!r}: {relative_path}")
+        if hash_mode not in {"raw", "text-lf"}:
+            errors.append(f"Unsupported hash mode {hash_mode!r}: {relative_path}")
+            continue
         path = repo_root / relative_path
         if not path.is_file():
             errors.append(f"Missing artifact: {relative_path}")
-        elif _sha256(path) != expected_hash:
+        elif _sha256(path, hash_mode) != expected_hash:
             errors.append(f"SHA-256 mismatch: {relative_path}")
 
     audited = _audited_files(repo_root)

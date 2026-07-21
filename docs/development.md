@@ -61,7 +61,9 @@ The root intentionally contains only `.gitignore`, `LICENSE`, `README.md`, `pypr
 - Keep capability and performance claims tied to retained evidence.
 - Do not commit secrets, private footage, datasets, or weights.
 - Register every third-party/generated artifact in `docs/legal/provenance.yaml`.
-- Use only an approved open-source/public-domain license and exact SHA-256.
+- Use only an approved open-source/public-domain license and exact SHA-256. For committed text
+  evidence, set `hash_mode: text-lf` so Windows CRLF checkout does not change the canonical hash;
+  binary artifacts use the default raw-byte mode.
 - Report security issues privately through GitHub Security Advisories.
 
 For model contributions, include base model/license, checkpoint hash, dataset version/license/split,

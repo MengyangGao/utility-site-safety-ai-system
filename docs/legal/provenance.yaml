@@ -43,6 +43,7 @@ artifacts:
     privacy_redaction: enabled
   - path: docs/model-evaluation/ppe_yolo11n-v1/benchmark.json
     sha256: 5529318660a7ba7f8a1fda2215d94dff1d8e4493634a71c28090289dd0537de1
+    hash_mode: text-lf
     license: AGPL-3.0-only
     source: yolo11
     generated_by: scripts/benchmark.py
@@ -63,11 +64,13 @@ artifacts:
     generated_by: scripts/validate_ppe_model.py
   - path: docs/model-evaluation/ppe_yolo11n-v1/metadata.json
     sha256: 97dce9092ccdc19b5d9705ed73a6cf3680577c05dd4c04395411be1eace076d2
+    hash_mode: text-lf
     license: AGPL-3.0-only
     source: construction-ppe
     generated_by: scripts/validate_ppe_model.py
   - path: docs/model-evaluation/ppe_yolo11n-v1/metrics.json
     sha256: a19dd9cd2721dadc18863027c5828e860ac6c4d8410ab53ed8d03f93340fa96d
+    hash_mode: text-lf
     license: AGPL-3.0-only
     source: construction-ppe
     generated_by: scripts/validate_ppe_model.py
@@ -88,11 +91,13 @@ artifacts:
     generated_by: scripts/validate_ppe_model.py
   - path: docs/model-evaluation/ppe_yolo11n-v1/training-args.yaml
     sha256: 16624f628cbbf77aad7883ddb15a1ff791f33fca155baa0e6625b2595d8eaf50
+    hash_mode: text-lf
     license: AGPL-3.0-only
     source: construction-ppe
     generated_by: utility-safety-ai train
   - path: docs/model-evaluation/ppe_yolo11n-v1/training-results.csv
     sha256: c8f49ff736cc8630ce7e2d64f13ef5a085065d8d36da5d249c524975341a96cb
+    hash_mode: text-lf
     license: AGPL-3.0-only
     source: construction-ppe
     generated_by: utility-safety-ai train
