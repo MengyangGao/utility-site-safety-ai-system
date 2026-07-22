@@ -1,70 +1,47 @@
-# PPE YOLO11n v1 evaluation
+# PPE YOLO11n evaluation
 
-This directory retains auditable local evaluation evidence for checkpoint SHA-256
-`b05d39dba9d9a5a19855b9cc7dc4c613e979a64a280929e593522685c19cefff`.
-The checkpoint itself is intentionally excluded from Git. Running the documented non-deterministic
-training recipe creates a new, non-identical checkpoint; published metrics apply only to the exact
-hash above.
+Results below belong to the bundled `models/ppe_yolo11n.pt` checkpoint (SHA-256
+`b05d39dba9d9a5a19855b9cc7dc4c613e979a64a280929e593522685c19cefff`). It was evaluated on the
+143-image Construction-PPE validation split using CPU inference.
 
-## Independent validation result
+| Precision | Recall | mAP50 | mAP50-95 |
+|---:|---:|---:|---:|
+| 0.6903 | 0.5515 | 0.5786 | 0.2860 |
 
-The promoted checkpoint was evaluated after training on the 143-image, 1,172-instance
-Construction-PPE validation split using CPU inference.
-
-| Metric | Result |
+| Class | mAP50 |
 |---|---:|
-| Precision | 0.6903 |
-| Recall | 0.5515 |
-| mAP50 | 0.5786 |
-| mAP50-95 | 0.2860 |
+| Person | 0.9026 |
+| Vest | 0.8635 |
+| Helmet | 0.8448 |
+| Gloves | 0.8184 |
+| Goggles | 0.7748 |
+| Boots | 0.7672 |
+| No helmet | 0.3998 |
+| No goggles | 0.1986 |
+| No gloves | 0.1835 |
+| No boots | 0.0285 |
 
-Strong mAP50 classes were `Person` (0.9026), vest (0.8635), helmet (0.8448), gloves
-(0.8184), goggles (0.7748), and boots (0.7672). Explicit negative classes were much weaker:
-`no_helmet` 0.3998, `no_goggle` 0.1986, `no_gloves` 0.1835, and `no_boots` 0.0285.
-The validation split contains only four `no_boots` instances, and recall for that class was zero.
-There is no `no_vest` class in this dataset.
+The validation split contains only four `no_boots` instances and no `no_vest` class. Use the model
+for demonstrations and verify alerts against footage from the intended camera before relying on its
+results.
 
-These numbers support an engineering demonstration, not a safety deployment claim. The weak and
-imbalanced explicit-negative classes are the primary model-quality bottleneck; the application
-therefore reports missing PPE only from an explicit negative detection and treats absence as
-`unknown`.
+## Visual results
 
-## Detector-only benchmark
+<table>
+  <tr>
+    <td><img src="confusion-matrix-normalized.png" alt="Normalized confusion matrix"></td>
+    <td><img src="pr-curve.png" alt="Precision-recall curve"></td>
+  </tr>
+</table>
 
-The benchmark used one deterministic 640×640 synthetic noise frame, five warm-up calls, and 30
-timed `detector.predict` calls per device on an Apple M4 Pro.
+## Runtime snapshot
+
+Detector-only timing on an Apple M4 Pro with a 640 × 640 synthetic frame:
 
 | Device | FPS | ms/frame |
 |---|---:|---:|
 | CPU | 28.40 | 35.21 |
 | Apple MPS | 117.95 | 8.48 |
 
-The JSON file is authoritative because reruns vary. This is not end-to-end throughput: it excludes
-media decode, tracking, rules, privacy blur, annotation, logging, and output encoding.
-
-## Artifact index
-
-- [`metadata.json`](metadata.json) — checkpoint, dataset, command, environment, and split identity
-- [`metrics.json`](metrics.json) — aggregate and per-class validation metrics
-- [`benchmark.json`](benchmark.json) — raw CPU/MPS timing evidence and scope
-- [`training-args.yaml`](training-args.yaml) — sanitized Ultralytics training configuration
-- [`training-results.csv`](training-results.csv) — per-epoch training/validation curve
-- [`confusion-matrix-normalized.png`](confusion-matrix-normalized.png)
-- [`confusion-matrix.png`](confusion-matrix.png)
-- [`pr-curve.png`](pr-curve.png)
-- [`f1-curve.png`](f1-curve.png)
-- [`precision-curve.png`](precision-curve.png)
-- [`recall-curve.png`](recall-curve.png)
-The public validation split and aggregate plots do not replace a site-specific
-false-positive/false-negative gallery. That work remains required before any field pilot. The prior
-validation mosaics were removed because the exact upstream image filenames inside those composites
-had not been retained; the numeric artifacts remain tied to the dataset archive and checkpoint hash.
-
-## License and provenance boundary
-
-The base YOLO11 checkpoint and Ultralytics runtime are offered under AGPL-3.0 with separate
-Enterprise terms available. Construction-PPE is documented by Ultralytics as AGPL-3.0. This project
-is distributed under AGPL-3.0-only to keep its open-source license boundary aligned with the
-integrated detector stack. See the [third-party notices](../../legal/third-party-notices.md) and
-[provenance manifest](../../legal/provenance.yaml) before redistributing weights or evaluation
-artifacts.
+See `metrics.json`, `benchmark.json`, the curve images, `training-args.yaml`, and
+`training-results.csv` in this directory for the complete recorded result.

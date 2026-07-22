@@ -48,7 +48,7 @@ datasets/*.zip
 !datasets/data.yaml
 !datasets/.gitkeep
 
-# Trained model weights (large binaries) - keep placeholder only
+# Model exports and large checkpoints
 models/*.pt
 models/*.pt.json
 models/*.onnx
@@ -58,6 +58,9 @@ models/*.torchscript
 models/*.mlmodel
 models/*.ncnn
 !models/.gitkeep
+# Small, ready-to-use models shipped with the public demo
+!models/yolo11n.pt
+!models/ppe_yolo11n.pt
 /*.pt
 
 # Streamlit secrets

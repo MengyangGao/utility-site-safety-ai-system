@@ -9,7 +9,7 @@ from pathlib import Path
 from utility_safety_ai.governance import audit_provenance
 from utility_safety_ai.zones.zone_loader import load_zones
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = REPO_ROOT / "examples"
 
 
@@ -26,7 +26,7 @@ def test_asset_manifest_paths_and_hashes_match_committed_files():
     report = audit_provenance(manifest, REPO_ROOT)
 
     assert report["passed"], report["errors"]
-    assert report["artifact_count"] == 15
+    assert report["artifact_count"] == 25
     assert report["approved_licenses"] == ["AGPL-3.0-only", "CC0-1.0"]
 
 
@@ -45,14 +45,15 @@ def test_public_model_registry_is_machine_readable_and_honest():
     registry = json.loads((REPO_ROOT / "models" / "registry.json").read_text(encoding="utf-8"))
 
     assert registry["schema_version"] == "1.0"
-    assert any(model["status"] == "clean-clone-default" for model in registry["models"])
+    assert any(model["status"] == "bundled-default" for model in registry["models"])
     ppe = next(model for model in registry["models"] if "ppe" in model["capabilities"])
     assert len(ppe["sha256"]) == 64
-    assert ppe["redistributable_with_repository"] is False
+    assert ppe["redistributable_with_repository"] is True
     assert ppe["license"] == "AGPL-3.0-only"
+    assert (REPO_ROOT / "models" / ppe["filename"]).stat().st_size < 10_000_000
 
 
-def test_tracked_root_is_intentionally_small():
+def test_tracked_root_is_minimal():
     tracked = subprocess.run(
         ["git", "ls-files"],
         cwd=REPO_ROOT,

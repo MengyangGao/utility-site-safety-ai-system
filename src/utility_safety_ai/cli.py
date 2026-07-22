@@ -144,7 +144,7 @@ def _common_inference_options(function):
             envvar="UTILITY_SAFETY_WEBHOOK_URL",
             help="Optional operator-owned HTTP(S) alert endpoint.",
         ),
-        click.option("--run-id", default=None, help="Optional deterministic audit run identifier."),
+        click.option("--run-id", default=None, help="Optional stable run identifier."),
         click.option(
             "--overwrite",
             is_flag=True,
@@ -423,7 +423,7 @@ def doctor(model: str | None) -> None:
     click.echo(json.dumps(payload, indent=2))
 
 
-@main.command("model-gate")
+@main.command("model-gate", hidden=True)
 @click.option(
     "--metrics",
     required=True,
@@ -442,7 +442,7 @@ def model_gate(
     min_class_recall: float,
     required_classes: tuple[str, ...],
 ) -> None:
-    """Fail model promotion when aggregate or required-class metrics are weak."""
+    """Validate model metrics against configurable thresholds."""
 
     from .training.quality_gate import assess_model_metrics
 
@@ -457,10 +457,10 @@ def model_gate(
     )
     click.echo(json.dumps(result, indent=2))
     if not result["passed"]:
-        raise click.ClickException("Model did not pass the promotion gate")
+        raise click.ClickException("Model metrics did not meet the configured thresholds")
 
 
-@main.command("audit-provenance")
+@main.command("audit-provenance", hidden=True)
 @click.option(
     "--manifest",
     default="docs/legal/provenance.yaml",
@@ -486,7 +486,7 @@ def audit_provenance_cmd(manifest: Path, repo_root: Path) -> None:
 
 @main.command("web")
 def web() -> None:
-    """Launch the Streamlit operator console."""
+    """Launch the Streamlit monitoring console."""
     app_path = Path(__file__).resolve().parent / "web" / "app.py"
     command = [sys.executable, "-m", "streamlit", "run", str(app_path)]
     try:

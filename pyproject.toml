@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "utility-safety-ai"
 version = "2.1.0"
-description = "Auditable computer-vision safety monitoring for utility and construction worksites."
+description = "Computer-vision PPE and restricted-zone monitoring for utility and construction worksites."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 license = "AGPL-3.0-only"
@@ -56,6 +56,7 @@ Issues = "https://github.com/MengyangGao/utility-site-safety-ai-system/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["utility_safety_ai*"]
 
 [tool.ruff]
 line-length = 100
@@ -66,12 +67,13 @@ select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
 ignore = ["E501"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["src/tests"]
 addopts = "-ra --strict-markers"
 
 [tool.coverage.run]
 branch = true
 source = ["utility_safety_ai"]
+omit = ["src/utility_safety_ai/tools/*"]
 
 [tool.coverage.report]
 show_missing = true

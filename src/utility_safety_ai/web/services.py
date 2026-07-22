@@ -107,7 +107,7 @@ def analyse_path(
     zones: list[NormalizedZone],
     settings: AnalysisSettings,
 ) -> AnalysisResult:
-    """Analyse a repository-owned, attribution-safe portfolio image."""
+    """Analyse the sample image included with the repository."""
     run_id = generate_run_id()
     detector = _detector(settings)
     engine = _engine(settings, zones)

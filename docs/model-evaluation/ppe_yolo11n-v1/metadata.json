@@ -7,7 +7,7 @@
     "base_checkpoint": "models/yolo11n.pt",
     "base_checkpoint_sha256": "0ebbc80d4a7680d14987a577cd21342b65ecfd94632bd9a8da63ae6417644ee1",
     "upstream": "https://docs.ultralytics.com/models/yolo11/",
-    "license": "Ultralytics AGPL-3.0 or separate Enterprise terms; review before redistribution"
+    "license": "AGPL-3.0-only"
   },
   "dataset": {
     "name": "Ultralytics Construction-PPE",
@@ -63,13 +63,12 @@
     "curve_artifact": "training-results.csv"
   },
   "validation": {
-    "command": "python scripts/validate_ppe_model.py --model models/ppe_yolo11n.pt --data datasets/data.yaml --output outputs/validation/ppe_yolo11n_v1",
+    "command": "python -m utility_safety_ai.tools.validate_ppe_model --model models/ppe_yolo11n.pt --data datasets/data.yaml --output outputs/validation/ppe_yolo11n_v1",
     "device": "CPU",
     "metrics_artifact": "metrics.json",
     "confusion_matrix_artifact": "confusion-matrix-normalized.png",
     "pr_curve_artifact": "pr-curve.png",
-    "f1_curve_artifact": "f1-curve.png",
-    "prediction_sample_artifact": "validation-predictions.jpg"
+    "f1_curve_artifact": "f1-curve.png"
   },
   "benchmark": {
     "artifact": "benchmark.json",

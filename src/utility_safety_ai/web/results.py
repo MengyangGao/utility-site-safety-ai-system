@@ -112,7 +112,7 @@ def _review_workspace(run_dir: Path, events: pd.DataFrame, evidence_title: str) 
                 options=["unreviewed", "confirmed", "false_positive", "needs_follow_up"],
                 required=True,
             ),
-            "operator_note": st.column_config.TextColumn("Operator note"),
+            "operator_note": st.column_config.TextColumn("Reviewer note"),
         },
         key=f"review_{run_dir.name}",
     )
@@ -128,7 +128,7 @@ def _review_workspace(run_dir: Path, events: pd.DataFrame, evidence_title: str) 
 
 
 def render_run(run_dir: Path, *, quality_title: str, evidence_title: str) -> None:
-    """Render one immutable run as an operator-facing evidence workspace."""
+    """Render one completed run as a review workspace."""
     if not run_dir.is_dir():
         st.warning("The selected run is no longer available.")
         return
@@ -155,14 +155,17 @@ def render_run(run_dir: Path, *, quality_title: str, evidence_title: str) -> Non
     with left:
         _display_primary_artifact(run_dir)
     with right:
-        st.markdown("**Run integrity**")
+        st.markdown("**Run details**")
         st.caption(f"Model · {model.get('model_path') or 'runtime'}")
         model_hash = model.get("model_sha256")
         st.code(str(model_hash)[:20] + "…" if model_hash else "hash unavailable")
         capabilities = model.get("capabilities") or []
-        st.caption(" · ".join(str(item).replace("_", " ") for item in capabilities) or "Capability pending")
+        st.caption(
+            " · ".join(str(item).replace("_", " ") for item in capabilities)
+            or "Model capabilities loading"
+        )
         st.download_button(
-            "Download complete audit bundle",
+            "Download complete report",
             _bundle_run(run_dir),
             file_name=f"utility-safety-{run_dir.name}.zip",
             mime="application/zip",
@@ -172,7 +175,7 @@ def render_run(run_dir: Path, *, quality_title: str, evidence_title: str) -> Non
 
     _quality_panel(run_dir, quality_title)
     _review_workspace(run_dir, events, evidence_title)
-    with st.expander("Manifest and reproducibility evidence"):
+    with st.expander("Run settings and file hashes"):
         st.json(manifest)
 
 

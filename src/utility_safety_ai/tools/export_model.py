@@ -56,8 +56,8 @@ def export(
         kwargs["workspace"] = workspace
 
     model = YOLO(model_path)
-    path = model.export(**kwargs)
-    path = Path(path)
+    exported_path = model.export(**kwargs)
+    path = Path(exported_path)
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

@@ -1,34 +1,15 @@
-# Local model directory
+# Included models
 
-Checkpoint binaries are intentionally ignored by Git. They retain their upstream model/dataset
-license terms and can be large or deployment-specific.
+The repository is ready to run immediately after installation.
 
-[`registry.json`](registry.json) is the machine-readable source of truth for public capabilities,
-installation commands, hashes, and redistribution status. The Web app exposes verified registry/local
-profiles by default; set `UTILITY_SAFETY_TRUSTED_MODELS_ONLY=1` for hosted deployments to disable
-arbitrary local checkpoint paths.
+| Model | Size | Use |
+|---|---:|---|
+| `ppe_yolo11n.pt` | 5.2 MB | Default PPE, person, and restricted-zone monitoring |
+| `yolo11n.pt` | 5.4 MB | General person and restricted-zone monitoring |
 
-Default discovery order:
+The PPE model was fine-tuned from Ultralytics YOLO11n on the
+[Construction-PPE dataset](https://docs.ultralytics.com/datasets/detect/construction-ppe/). Its
+class map includes worn PPE and explicit missing-PPE labels. The application selects it
+automatically; pass `--model models/yolo11n.pt` when only person and zone monitoring is needed.
 
-1. `ppe_yolo11n.pt`
-2. `ppe_yolo11s.pt`
-3. `yolo11n.pt`
-4. Ultralytics runtime download of `yolo11n.pt`
-
-Install the clean-clone general detector with:
-
-```bash
-utility-safety-ai fetch-model --model yolo11n.pt --output models
-```
-
-The command also writes an ignored `yolo11n.pt.json` containing the local hash and Ultralytics
-version. A custom PPE checkpoint can be trained with the README recipe and promoted manually.
-
-The 2026-07-13 engineering evaluation applies only to local PPE checkpoint SHA-256
-`b05d39dba9d9a5a19855b9cc7dc4c613e979a64a280929e593522685c19cefff`. That binary is not part of
-the source repository, and non-deterministic retraining will not reproduce it. See
-[`docs/model-evaluation/ppe_yolo11n-v1`](../docs/model-evaluation/ppe_yolo11n-v1/README.md).
-
-Review the [model/data policy](../docs/model-and-data.md) and
-[third-party notices](../docs/legal/third-party-notices.md) before redistributing a model or using
-Ultralytics in a hosted, proprietary, or commercial context.
+Model metadata and hashes are available in [`registry.json`](registry.json).

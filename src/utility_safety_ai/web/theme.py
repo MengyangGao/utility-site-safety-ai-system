@@ -91,7 +91,7 @@ def hero(product: str, subtitle: str, ready: str, boundary: str) -> None:
           <div class="usi-step"><span>01</span>INPUT<b>Image / video / camera</b></div>
           <div class="usi-step"><span>02</span>POLICY<b>Zones & PPE rules</b></div>
           <div class="usi-step"><span>03</span>ANALYSE<b>Track & confirm</b></div>
-          <div class="usi-step"><span>04</span>REVIEW<b>Evidence & audit trail</b></div>
+          <div class="usi-step"><span>04</span>REVIEW<b>Results & reports</b></div>
         </div>
         """,
         unsafe_allow_html=True,

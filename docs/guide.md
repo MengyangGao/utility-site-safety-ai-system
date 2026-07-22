@@ -1,89 +1,60 @@
-# Product and operations guide
+# User guide
 
-## Architecture
+## Monitoring workflow
 
-```text
-image / video / camera / RTSP
-              │
-              ▼
-      YOLO detector adapter
-              │
-              ▼
-   motion-aware temporary tracker
-          ┌───┴────────┐
-          ▼            ▼
-  person ↔ PPE     zone geometry
-          └───┬────────┘
-              ▼
-        rule lifecycle
- provisional → confirmed → resolved
-              │
-         privacy redaction
-              │
-       annotated evidence
-              │
- events · compliance · quality · manifest
+1. Choose the bundled PPE model or the general person model.
+2. Upload an image/video or select a camera/RTSP stream.
+3. Choose a monitoring profile and configure one or more zones.
+4. Run analysis and review annotated media, findings, and PPE status.
+5. Add operator notes or download the complete report ZIP.
+
+Start the Web console with:
+
+```bash
+utility-safety-ai web
 ```
-
-The detector adapter normalizes model output. Tracking remains local to one stream and is never an
-identity claim. PPE boxes are linked to people only when their geometry is plausible and the best
-candidate is not ambiguous. Zone rules use each person's bottom-center point.
-
-For videos and streams, findings pass through profile-controlled consecutive-frame confirmation.
-Cooldown suppresses duplicate log entries without hiding an active finding. Images are evaluated
-immediately because they cannot accumulate temporal evidence.
 
 ## Monitoring profiles
 
-| Profile | Best for | Trade-off |
-|---|---|---|
-| `balanced` | Normal demos and review | Default balance |
-| `high_precision` | Reducing weak/transient alerts | More missed or delayed findings |
-| `high_sensitivity` | Surfacing weak evidence early | More false positives |
+| Profile | Use when |
+|---|---|
+| `balanced` | You want the default balance of stability and sensitivity |
+| `high_precision` | You want fewer weak or transient alerts |
+| `high_sensitivity` | You want to surface weaker evidence earlier |
 
-These profiles tune model confidence, overlap suppression, person-PPE association, tracking memory,
-and confirmation frames. They are engineering presets, not calibrated safety guarantees.
+Profiles tune confidence, overlap suppression, person-PPE association, tracking memory, and the
+number of frames required to confirm a video alert.
 
-## Interfaces
-
-Show all commands:
+## CLI workflows
 
 ```bash
-utility-safety-ai --help
-```
-
-Common workflows:
-
-```bash
-# Web console
-utility-safety-ai web
-
 # Image
 utility-safety-ai infer-image --source image.jpg --zones zones.yaml --blur-faces
 
 # Video
 utility-safety-ai infer-video --source video.mp4 --zones zones.yaml --blur-faces
 
-# Camera index or RTSP
+# Webcam
 utility-safety-ai infer-camera --source 0 --max-frames 300 --blur-faces
 
-# Report conversion
+# RTSP stream
+utility-safety-ai infer-camera --source "rtsp://camera/stream" --blur-faces
+
+# Convert an event log to CSV
 utility-safety-ai export-report --events events.jsonl --format csv --output report.csv
 ```
 
-The Web console provides image/video upload, browser capture, camera/RTSP input, normalized-zone
-editing, model capability inspection, privacy controls, evidence review, operator notes, history,
-and complete audit ZIP downloads. Privacy redaction and CPU processing are the stable defaults.
+Run `utility-safety-ai --help` or `utility-safety-ai <command> --help` for every option.
 
-## Zone policy
+## Zone policies
 
-Zones accept pixel coordinates or normalized values in `[0, 1]`. Normalized policies are preferred
-because they remain aligned when input resolution changes.
+The system checks the bottom-center point of each tracked person against polygon zones. Normalized
+coordinates stay aligned when the input resolution changes.
 
 ```yaml
 zones:
-  - id: work_area
-    name: Restricted work area
+  - id: restricted_area
+    name: Restricted Area
     coordinate_space: normalized
     risk_level: high
     min_dwell_seconds: 0.5
@@ -95,40 +66,22 @@ zones:
       - [0.10, 0.95]
 ```
 
-Image-plane polygons are not calibrated physical distances. Camera movement invalidates the policy
-until it is reviewed and realigned.
+Pixel-coordinate zones are also supported. Recheck the zone whenever a camera is moved.
 
-## Run lifecycle
+## Findings and risk levels
 
-Every run receives an isolated directory. Reusing a run ID fails unless `--overwrite` is explicit.
-Replacement is transactional: a failed attempt is written below `failed-runs/` and cannot replace
-the last successful `latest.json` pointer.
+The rule engine combines model detections, person-PPE association, and zone entry into four risk
+levels: `low`, `medium`, `high`, and `critical`. Video findings are confirmed across consecutive
+frames, and a cooldown prevents the same tracked person from generating an event every frame.
 
-Persisted source strings redact RTSP user information and common token query parameters. Privacy
-processing occurs before annotated media or snapshots are written. Treat all output as sensitive;
-redaction can still miss identifying details.
+## Privacy controls
 
-## Deployment boundary
+Enable `--blur-faces` in the CLI or keep **Privacy blur** enabled in the Web console. Choose Gaussian
+blur, pixelation, or solid redaction. The system does not perform face recognition and track IDs last
+only for the current stream.
 
-The Streamlit app is intended for a local or controlled demonstration. For a hosted demo:
+## Run history and downloads
 
-- set `UTILITY_SAFETY_TRUSTED_MODELS_ONLY=1`;
-- place the service behind TLS, authentication, and access controls;
-- run as an unprivileged user with upload, CPU, memory, and time limits;
-- protect `outputs/` and define retention/deletion rules;
-- load only trusted model files—PyTorch checkpoints can execute code;
-- keep camera credentials in a deployment secret store, not source URLs or shell history.
-
-Real multi-camera use needs supervised workers, reconnect handling, a durable queue, camera health,
-backlog/latency monitoring, an authenticated evidence store, and incident procedures. This project
-does not supply those production controls.
-
-## Security and privacy
-
-Report vulnerabilities through the repository's private GitHub Security Advisory flow. Do not put
-credentials, identifiable worksite footage, private weights, or proprietary datasets in a public
-issue. High-priority concerns include unsafe model loading, path traversal, credential leakage,
-privacy-redaction bypass, session isolation, and report exposure.
-
-This project deliberately excludes face recognition, persistent identity, automated discipline,
-authentication, tenancy, and safety interlocks.
+Successful runs appear in the Web console's **Run history** tab. Each run contains annotated media,
+event snapshots, CSV/JSONL records, a summary, processing indicators, and a manifest with hashes.
+`latest.json` always points to the latest completed run.

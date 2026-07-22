@@ -11,7 +11,7 @@ real-world missing-PPE images, but it can help the model learn the geometry
 of the negative class.
 
 Example:
-    python scripts/synthesize_ppe_negatives.py \
+    python -m utility_safety_ai.tools.synthesize_ppe_negatives \
         --data datasets/construction-ppe/data.yaml \
         --classes helmet vest goggles \
         --output datasets/construction-ppe-synthetic
@@ -177,8 +177,8 @@ def _synthesize_for_split(
             if len(parts) < 5:
                 continue
             cid = int(parts[0])
-            bbox = tuple(float(v) for v in parts[1:5])
-            parsed.append((cid, *bbox))
+            cx, cy, width, height = (float(v) for v in parts[1:5])
+            parsed.append((cid, cx, cy, width, height))
             if cid in target_ids:
                 target_indices.append(i)
 
@@ -280,7 +280,7 @@ def synthesize(
         total_created += created
 
     # Write updated data.yaml.
-    new_config = {
+    new_config: dict[str, object] = {
         "path": str(output_root.resolve()),
         "train": "images/train",
         "val": "images/val" if (output_root / "images" / "val").exists() else "images/train",

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import cv2
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 DEMO_IMAGE = REPO_ROOT / "examples" / "sample_images" / "construction_site_ppe_01.jpg"
 
 
@@ -28,9 +28,10 @@ def create_vertical_pan_video(
     if viewport_height > height:
         raise ValueError("Viewport height cannot exceed the source image height")
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
     writer = cv2.VideoWriter(
         str(output_path),
-        cv2.VideoWriter_fourcc(*"mp4v"),
+        fourcc,
         fps,
         (width, viewport_height),
     )

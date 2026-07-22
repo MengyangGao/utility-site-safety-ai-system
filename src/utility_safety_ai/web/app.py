@@ -1,4 +1,4 @@
-"""Modern Streamlit operator console."""
+"""Modern Streamlit monitoring console."""
 
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ def _sidebar_settings() -> AnalysisSettings:
         profile = get_monitoring_profile(profile_name)
         st.caption(profile.description)
 
-        model_label = st.selectbox("Verified model profile", list(MODEL_PROFILES))
+        model_label = st.selectbox("Model profile", list(MODEL_PROFILES))
         use_custom = st.toggle("Advanced custom model", value=False)
         if use_custom:
             st.warning("Only load checkpoints you trust. PyTorch weights can contain code.")
@@ -102,7 +102,7 @@ def _sidebar_settings() -> AnalysisSettings:
             )
             cooldown = st.slider("Repeat-alert cooldown (seconds)", 0, 60, 10)
 
-        st.markdown("### Privacy & evidence")
+        st.markdown("### Privacy & reports")
         blur_faces = st.toggle("Privacy blur", value=True)
         privacy_mode = st.selectbox(
             "Privacy redaction style",
@@ -205,7 +205,7 @@ def _finish(result: AnalysisResult) -> None:
 
 def _run_action(operation) -> None:
     try:
-        with st.spinner("Loading model and building auditable evidence…"):
+        with st.spinner("Running detection and preparing results…"):
             _finish(operation())
         flash = st.session_state.pop("run_flash", None)
         if flash:
@@ -237,12 +237,12 @@ def _monitor_workspace(settings: AnalysisSettings, zones: list, zones_valid: boo
             width="stretch",
         )
         run_sample = right.button(
-            "Run portfolio sample",
+            _t("run_sample"),
             disabled=not zones_valid or not sample_available,
             width="stretch",
         )
         if not sample_available:
-            st.caption("Portfolio sample is available when the app runs from a source checkout.")
+            st.caption("The included sample is available when the app runs from the repository.")
         if run_upload and upload is not None:
             _run_action(
                 lambda: analyse_file(
@@ -327,7 +327,7 @@ def _monitor_workspace(settings: AnalysisSettings, zones: list, zones_valid: boo
     cols = st.columns(3)
     cols[0].metric("Alert confirmation", f"{profile.ppe_confirmation_frames} frames")
     cols[1].metric("Track memory", f"{profile.tracker_max_age} frames")
-    cols[2].metric("Association gate", f"{profile.association_min_score:.2f}")
+    cols[2].metric("Association threshold", f"{profile.association_min_score:.2f}")
 
 
 def main() -> None:

@@ -25,8 +25,8 @@ DEMO_IMAGE = REPO_ROOT / "examples" / "sample_images" / "construction_site_ppe_0
 
 MODEL_PROFILES: dict[str, str] = {}
 if (REPO_ROOT / "models" / "ppe_yolo11n.pt").is_file():
-    MODEL_PROFILES["PPE monitor · local portfolio checkpoint"] = "models/ppe_yolo11n.pt"
-MODEL_PROFILES["Person + restricted zone · YOLO11n"] = (
+    MODEL_PROFILES["PPE + restricted-zone monitor"] = "models/ppe_yolo11n.pt"
+MODEL_PROFILES["Person + restricted-zone monitor"] = (
     "models/yolo11n.pt"
     if (REPO_ROOT / "models" / "yolo11n.pt").is_file()
     else "yolo11n.pt"
@@ -43,7 +43,7 @@ LANGUAGES = {"English": "en", "简体中文": "zh-hans", "繁體中文": "zh-han
 TEXT: dict[str, dict[str, str]] = {
     "en": {
         "product": "Utility Safety Intelligence",
-        "subtitle": "Evidence-first visual monitoring for high-risk field operations.",
+        "subtitle": "Real-time PPE, people, and work-zone monitoring.",
         "monitor": "Monitor",
         "policy": "Zones & policy",
         "results": "Results & review",
@@ -51,19 +51,19 @@ TEXT: dict[str, dict[str, str]] = {
         "ready": "SYSTEM READY",
         "workflow": "Select source · Apply policy · Analyse · Review evidence",
         "run": "Run safety analysis",
-        "run_sample": "Run portfolio sample",
-        "no_result": "Run an analysis to open the evidence workspace.",
-        "privacy_note": "Privacy protection is enabled by default for every saved artifact.",
+        "run_sample": "Run included sample",
+        "no_result": "Run an analysis to view detections, events, and reports.",
+        "privacy_note": "Privacy protection is enabled by default for saved media.",
         "quality": "Monitoring quality",
-        "evidence": "Evidence timeline",
-        "capability": "Capability boundary",
-        "not_certified": "Decision-support prototype · Human review required",
+        "evidence": "Event timeline",
+        "capability": "Model capabilities",
+        "not_certified": "Human review required",
         "zone_valid": "Policy ready",
         "zone_invalid": "Policy needs attention",
     },
     "zh-hans": {
         "product": "电力现场安全智能平台",
-        "subtitle": "面向高风险作业的证据化视觉监测与复核。",
+        "subtitle": "实时监测人员、个人防护装备与作业区域。",
         "monitor": "监测中心",
         "policy": "区域与策略",
         "results": "结果与复核",
@@ -71,19 +71,19 @@ TEXT: dict[str, dict[str, str]] = {
         "ready": "系统就绪",
         "workflow": "选择来源 · 应用策略 · 智能分析 · 人工复核",
         "run": "开始安全分析",
-        "run_sample": "运行作品集示例",
-        "no_result": "运行一次分析后，将在这里打开证据工作区。",
+        "run_sample": "运行内置示例",
+        "no_result": "运行一次分析后，在这里查看检测、事件与报告。",
         "privacy_note": "所有保存的结果默认启用隐私保护。",
         "quality": "监测质量",
-        "evidence": "证据时间线",
-        "capability": "能力边界",
-        "not_certified": "辅助决策原型 · 必须人工复核",
+        "evidence": "事件时间线",
+        "capability": "模型能力",
+        "not_certified": "检测结果需人工复核",
         "zone_valid": "策略已就绪",
         "zone_invalid": "策略需要修正",
     },
     "zh-hant": {
         "product": "電力現場安全智能平台",
-        "subtitle": "面向高風險作業的證據化視覺監測與覆核。",
+        "subtitle": "即時監測人員、個人防護裝備與作業區域。",
         "monitor": "監測中心",
         "policy": "區域與策略",
         "results": "結果與覆核",
@@ -91,13 +91,13 @@ TEXT: dict[str, dict[str, str]] = {
         "ready": "系統就緒",
         "workflow": "選擇來源 · 套用策略 · 智慧分析 · 人工覆核",
         "run": "開始安全分析",
-        "run_sample": "執行作品集範例",
-        "no_result": "執行一次分析後，將在這裡開啟證據工作區。",
+        "run_sample": "執行內建範例",
+        "no_result": "執行一次分析後，在這裡查看偵測、事件與報告。",
         "privacy_note": "所有儲存的結果預設啟用隱私保護。",
         "quality": "監測品質",
-        "evidence": "證據時間線",
-        "capability": "能力邊界",
-        "not_certified": "輔助決策原型 · 必須人工覆核",
+        "evidence": "事件時間線",
+        "capability": "模型能力",
+        "not_certified": "偵測結果需人工覆核",
         "zone_valid": "策略已就緒",
         "zone_invalid": "策略需要修正",
     },

@@ -1,30 +1,45 @@
 {
   "schema_version": "1.0",
+  "default_model": "ppe-yolo11n-construction-ppe",
   "models": [
     {
-      "id": "yolo11n-general",
-      "filename": "yolo11n.pt",
-      "source": "Ultralytics runtime registry",
-      "source_url": "https://docs.ultralytics.com/models/yolo11/",
-      "license": "AGPL-3.0-only",
-      "install_command": "utility-safety-ai fetch-model --model yolo11n.pt --output models",
-      "capabilities": ["person", "restricted_zone"],
-      "redistributable_with_repository": false,
-      "status": "clean-clone-default"
-    },
-    {
-      "id": "ppe-yolo11n-local-evaluation",
+      "id": "ppe-yolo11n-construction-ppe",
       "filename": "ppe_yolo11n.pt",
+      "size_bytes": 5473498,
       "sha256": "b05d39dba9d9a5a19855b9cc7dc4c613e979a64a280929e593522685c19cefff",
       "base_model": "Ultralytics YOLO11n",
       "dataset": "Ultralytics Construction-PPE 1.0.0",
       "source_url": "https://docs.ultralytics.com/datasets/detect/construction-ppe/",
       "license": "AGPL-3.0-only",
       "capabilities": ["person", "ppe", "restricted_zone"],
-      "redistributable_with_repository": false,
-      "status": "evaluation-evidence-only",
+      "classes": [
+        "person",
+        "helmet",
+        "vest",
+        "gloves",
+        "boots",
+        "goggles",
+        "no_helmet",
+        "no_goggle",
+        "no_gloves",
+        "no_boots"
+      ],
+      "redistributable_with_repository": true,
+      "status": "bundled-default",
       "model_card": "docs/model-and-data.md",
       "evaluation": "docs/model-evaluation/ppe_yolo11n-v1/README.md"
+    },
+    {
+      "id": "yolo11n-general",
+      "filename": "yolo11n.pt",
+      "size_bytes": 5613764,
+      "sha256": "0ebbc80d4a7680d14987a577cd21342b65ecfd94632bd9a8da63ae6417644ee1",
+      "source": "Ultralytics YOLO11",
+      "source_url": "https://docs.ultralytics.com/models/yolo11/",
+      "license": "AGPL-3.0-only",
+      "capabilities": ["person", "restricted_zone"],
+      "redistributable_with_repository": true,
+      "status": "bundled-general"
     }
   ]
 }

@@ -11,7 +11,7 @@ from utility_safety_ai.web_helpers import parse_zone_yaml
 
 def test_streamlit_app_renders_without_exceptions():
     app_path = (
-        Path(__file__).resolve().parents[1]
+        Path(__file__).resolve().parents[2]
         / "src"
         / "utility_safety_ai"
         / "web"
@@ -28,8 +28,8 @@ def test_streamlit_app_renders_without_exceptions():
     ]
     assert len(privacy_controls) == 1
     assert privacy_controls[0].value is True
-    assert any(button.label == "Run portfolio sample" for button in app.button)
-    assert any(select.label == "Verified model profile" for select in app.selectbox)
+    assert any(button.label == "Run included sample" for button in app.button)
+    assert any(select.label == "Model profile" for select in app.selectbox)
     assert any(select.label == "Privacy redaction style" for select in app.selectbox)
     assert any(radio.label == "Video processing" for radio in app.radio)
 

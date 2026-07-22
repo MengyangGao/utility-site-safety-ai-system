@@ -37,20 +37,20 @@ def test_export_report(tmp_path):
     assert (output_dir / "events.csv").exists()
 
 
-def test_cli_exposes_model_lifecycle_commands():
+def test_cli_exposes_user_commands_without_internal_quality_tools():
     runner = CliRunner()
     result = runner.invoke(main, ["--help"])
     assert result.exit_code == 0
     assert "fetch-model" in result.output
     assert "doctor" in result.output
     assert "export-model" in result.output
-    assert "model-gate" in result.output
-    assert "audit-provenance" in result.output
     assert "web" in result.output
+    assert "model-gate" not in result.output
+    assert "audit-provenance" not in result.output
 
 
 def test_provenance_audit_command_passes_for_repository():
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = Path(__file__).resolve().parents[2]
     runner = CliRunner()
     result = runner.invoke(
         main,

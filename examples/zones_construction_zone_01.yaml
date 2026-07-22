@@ -1,0 +1,19 @@
+# Localized hazard zones for examples/sample_images/construction_zone_01.jpg
+# Image size: 1200 x 800 pixels
+zones:
+  - id: aerial_lift_platform
+    name: Aerial Lift / Live Work Zone
+    risk_level: high
+    polygon:
+      - [300, 560]
+      - [920, 560]
+      - [940, 760]
+      - [280, 760]
+  - id: danger_tape_boundary
+    name: Danger Tape Boundary
+    risk_level: medium
+    polygon:
+      - [0, 760]
+      - [1200, 760]
+      - [1200, 800]
+      - [0, 800]

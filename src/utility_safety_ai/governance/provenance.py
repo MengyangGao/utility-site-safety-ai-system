@@ -9,13 +9,14 @@ from typing import Any
 import yaml
 
 APPROVED_LICENSES = frozenset({"AGPL-3.0-only", "CC0-1.0"})
-AUDITED_SUFFIXES = frozenset({".csv", ".jpg", ".json", ".mp4", ".png", ".yaml"})
+AUDITED_SUFFIXES = frozenset({".csv", ".gif", ".jpg", ".json", ".mp4", ".png", ".yaml"})
 AUDITED_DIRECTORIES = (
     Path("examples/sample_images"),
     Path("examples/sample_videos"),
     Path("docs/assets"),
     Path("docs/model-evaluation"),
 )
+AUDITED_MODEL_DIRECTORY = Path("models")
 
 
 def _sha256(path: Path, hash_mode: str = "raw") -> str:
@@ -38,6 +39,11 @@ def _audited_files(repo_root: Path) -> set[str]:
             continue
         for path in directory.rglob("*"):
             if path.is_file() and path.suffix.lower() in AUDITED_SUFFIXES:
+                files.add(path.relative_to(repo_root).as_posix())
+    model_directory = repo_root / AUDITED_MODEL_DIRECTORY
+    if model_directory.exists():
+        for path in model_directory.glob("*.pt"):
+            if path.is_file():
                 files.add(path.relative_to(repo_root).as_posix())
     return files
 
