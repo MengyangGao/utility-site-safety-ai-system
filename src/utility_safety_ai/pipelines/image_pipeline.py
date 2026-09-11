@@ -46,6 +46,7 @@ def run_image_pipeline(
     audit_source: str | None = None,
     monitoring_profile: MonitoringProfile | None = None,
     event_sink: Callable[[SafetyEvent], None] | None = None,
+    privacy_reason: str = "operator_setting",
 ) -> tuple[np.ndarray, list[SafetyEvent]]:
     """Run image inference and persist an immutable, auditable run.
 
@@ -77,6 +78,7 @@ def run_image_pipeline(
         config={
             "privacy_blur_enabled": blur_faces_enabled,
             "privacy_mode": privacy_mode,
+            "privacy_reason": privacy_reason,
             "zones": zones_manifest(zones),
             "rule_engine": {
                 "cooldown_seconds": engine.cooldown_seconds,

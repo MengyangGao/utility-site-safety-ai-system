@@ -23,6 +23,10 @@ MODEL_PROFILES["Person + restricted-zone monitor"] = (
 )
 
 ZONE_PRESETS: dict[str, tuple[Path | None, Path | None]] = {}
+piling_zone = REPO_ROOT / "examples/zones_piling_rear_view.yaml"
+piling_image = REPO_ROOT / "examples/sample_images/piling_rear_view_01.jpg"
+if piling_zone.is_file() and piling_image.is_file():
+    ZONE_PRESETS["Piling works · example zone"] = (piling_zone, piling_image)
 ppe_zone = REPO_ROOT / "examples" / "zones_construction_site_ppe_01.yaml"
 if ppe_zone.is_file() and DEMO_IMAGE.is_file():
     ZONE_PRESETS["PPE work area"] = (ppe_zone, DEMO_IMAGE)
@@ -32,18 +36,18 @@ LANGUAGES = {"English": "en", "简体中文": "zh-hans", "繁體中文": "zh-han
 
 TEXT: dict[str, dict[str, str]] = {
     "en": {
-        "product": "Utility Safety Intelligence",
-        "subtitle": "Real-time PPE, people, and work-zone monitoring.",
+        "product": "Safety inspection",
+        "subtitle": "Review people, protective equipment and work-zone observations.",
         "monitor": "Monitor",
         "policy": "Zones & policy",
         "results": "Results & review",
         "history": "Run history",
-        "ready": "SYSTEM READY",
+        "ready": "Local workspace",
         "workflow": "Select source · Apply policy · Analyse · Review evidence",
         "run": "Run safety analysis",
         "run_sample": "Run included sample",
         "no_result": "Run an analysis to view detections, events, and reports.",
-        "privacy_note": "Privacy protection is enabled by default for saved media.",
+        "privacy_note": "Uploads use privacy protection by default. Reviewed rear-view samples can remain clear.",
         "quality": "Monitoring quality",
         "evidence": "Event timeline",
         "capability": "Model capabilities",
@@ -52,7 +56,7 @@ TEXT: dict[str, dict[str, str]] = {
         "zone_invalid": "Policy needs attention",
     },
     "zh-hans": {
-        "product": "电力现场安全智能平台",
+        "product": "现场安全检查",
         "subtitle": "实时监测人员、个人防护装备与作业区域。",
         "monitor": "监测中心",
         "policy": "区域与策略",
@@ -63,7 +67,7 @@ TEXT: dict[str, dict[str, str]] = {
         "run": "开始安全分析",
         "run_sample": "运行内置示例",
         "no_result": "运行一次分析后，在这里查看检测、事件与报告。",
-        "privacy_note": "所有保存的结果默认启用隐私保护。",
+        "privacy_note": "上传素材默认启用隐私保护；已核验的背面示例可保持清晰。",
         "quality": "监测质量",
         "evidence": "事件时间线",
         "capability": "模型能力",
@@ -72,7 +76,7 @@ TEXT: dict[str, dict[str, str]] = {
         "zone_invalid": "策略需要修正",
     },
     "zh-hant": {
-        "product": "電力現場安全智能平台",
+        "product": "現場安全檢查",
         "subtitle": "即時監測人員、個人防護裝備與作業區域。",
         "monitor": "監測中心",
         "policy": "區域與策略",
@@ -83,7 +87,7 @@ TEXT: dict[str, dict[str, str]] = {
         "run": "開始安全分析",
         "run_sample": "執行內建範例",
         "no_result": "執行一次分析後，在這裡查看偵測、事件與報告。",
-        "privacy_note": "所有儲存的結果預設啟用隱私保護。",
+        "privacy_note": "上傳素材預設啟用隱私保護；已核驗的背面範例可保持清晰。",
         "quality": "監測品質",
         "evidence": "事件時間線",
         "capability": "模型能力",

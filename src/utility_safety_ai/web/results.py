@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import io
 import json
 import zipfile
@@ -90,7 +91,7 @@ def _quality_panel(run_dir: Path, quality_title: str) -> None:
 
 
 def _review_workspace(run_dir: Path, events: pd.DataFrame, evidence_title: str) -> None:
-    section(evidence_title, "Every alert remains a reviewable hypothesis")
+    section(evidence_title, "Confirm a finding or record a false positive")
     if events.empty:
         st.success("No confirmed safety event was emitted in this run.")
         return
@@ -186,9 +187,12 @@ def render_run(run_dir: Path, *, quality_title: str, evidence_title: str) -> Non
 
     source = manifest.get("source", {})
     model = manifest.get("model", {})
-    status = str(manifest.get("status", "unknown")).upper()
-    st.caption(
-        f"RUN {run_dir.name}  ·  {status}  ·  {source.get('type', 'source')}  ·  {model.get('model_kind', 'model')}"
+    config = manifest.get("config", {})
+    source_name = Path(str(source.get("value", "Inspection"))).name
+    status = str(manifest.get("status", "unknown")).replace("_", " ").title()
+    st.markdown(
+        f'<div class="usi-run-heading"><div><h2>Inspection result</h2><p>{html.escape(source_name)}</p></div><span>{html.escape(status)}</span></div>',
+        unsafe_allow_html=True,
     )
     cols = st.columns(4)
     cols[0].metric("Frames analysed", metrics.get("frames_processed", 0))
@@ -199,27 +203,50 @@ def render_run(run_dir: Path, *, quality_title: str, evidence_title: str) -> Non
         critical = int(events["risk_level"].isin(["critical", "high"]).sum())
     cols[3].metric("High / critical", critical)
 
-    left, right = st.columns([1.7, 1], gap="large")
+    left, right = st.columns([2.1, 1], gap="large")
     with left:
         _display_primary_artifact(run_dir)
+        st.caption("Recorded evidence · detections and policy observations require human review.")
     with right:
-        st.markdown("**Run details**")
-        st.caption(f"Model · {model.get('model_path') or 'runtime'}")
-        model_hash = model.get("model_sha256")
-        st.code(str(model_hash)[:20] + "…" if model_hash else "hash unavailable")
-        capabilities = model.get("capabilities") or []
-        st.caption(
-            " · ".join(str(item).replace("_", " ") for item in capabilities)
-            or "Model capabilities loading"
-        )
-        st.download_button(
-            "Download complete report",
-            _bundle_run(run_dir),
-            file_name=f"utility-safety-{run_dir.name}.zip",
-            mime="application/zip",
-            key=f"bundle_{run_dir.name}",
-            width="stretch",
-        )
+        with st.container(border=True):
+            st.markdown("#### Observations")
+            if events.empty:
+                st.write("No confirmed event in this run.")
+            elif "event_type" in events:
+                for kind, count in events["event_type"].value_counts().items():
+                    st.markdown(
+                        f'<div class="usi-summary-row"><span>{html.escape(str(kind).replace("_", " ").title())}</span><b>{int(count)}</b></div>',
+                        unsafe_allow_html=True,
+                    )
+            st.caption("Event counts describe this run, not an overall site-safety rating.")
+            reason = str(config.get("privacy_reason", ""))
+            if reason.startswith("reviewed_rear_view_sample:") and not config.get(
+                "privacy_blur_enabled"
+            ):
+                privacy_label = "Reviewed rear view · no visible faces"
+            else:
+                privacy_label = (
+                    "Privacy redaction on"
+                    if config.get("privacy_blur_enabled")
+                    else "Privacy redaction off"
+                )
+            st.markdown(f"**{privacy_label}**")
+            st.download_button(
+                "Download complete report",
+                _bundle_run(run_dir),
+                file_name=f"utility-safety-{run_dir.name}.zip",
+                mime="application/zip",
+                key=f"bundle_{run_dir.name}",
+                width="stretch",
+                type="primary",
+            )
+        with st.expander("Model and provenance"):
+            st.caption(f"Model · {Path(str(model.get('model_path') or 'runtime')).name}")
+            model_hash = model.get("model_sha256")
+            st.code(str(model_hash) if model_hash else "hash unavailable")
+            capabilities = model.get("capabilities") or []
+            st.caption(" · ".join(str(item).replace("_", " ") for item in capabilities))
+            st.caption(f"Run · {run_dir.name}")
 
     capture = metrics.get("capture")
     if capture:

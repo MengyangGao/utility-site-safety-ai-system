@@ -9,7 +9,7 @@ description = "Computer-vision PPE and restricted-zone monitoring for utility an
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 license = "AGPL-3.0-only"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "docs/legal/sample-photos.md"]
 authors = [
     {name = "Utility Site Safety AI Contributors"},
 ]

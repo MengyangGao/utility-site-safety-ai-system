@@ -31,6 +31,7 @@ class AnalysisSettings:
     blur_faces: bool
     privacy_mode: str
     profile: MonitoringProfile
+    privacy_reason: str = "operator_setting"
 
 
 @dataclass(frozen=True)
@@ -109,6 +110,7 @@ def analyse_path(
     output_root: Path,
     zones: list[NormalizedZone],
     settings: AnalysisSettings,
+    source_label: str | None = None,
 ) -> AnalysisResult:
     """Analyse the sample image included with the repository."""
     run_id = generate_run_id()
@@ -125,8 +127,9 @@ def analyse_path(
         run_id=run_id,
         audit_source=source.name,
         monitoring_profile=settings.profile,
+        privacy_reason=settings.privacy_reason,
     )
-    return AnalysisResult(output_root / "runs" / run_id, source.name, len(events))
+    return AnalysisResult(output_root / "runs" / run_id, source_label or source.name, len(events))
 
 
 def analyse_camera(

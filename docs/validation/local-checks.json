@@ -28,5 +28,51 @@
   "known_dependency_advisories": 0,
   "dependency_audit_scope": "87 installed dependencies audited; local unpublished package excluded; not a code security guarantee",
   "remote_actions": "not run for local modifications",
-  "physical_camera": "not tested"
+  "physical_camera": "not tested",
+  "rear_view_update": {
+    "date": "2026-09-12",
+    "python": "3.11",
+    "passed": 190,
+    "coverage_percent": 81.26,
+    "browser": "reviewed rear-view case, zone observation, upload privacy isolation, report hashes, video playback, mobile layout passed",
+    "asset_license": "LicenseRef-Pexels",
+    "cases": [
+      {
+        "scene": "utility-rear-view",
+        "source_sha256": "a4e85ea8e526b1eff99bc7954cd8361b55b18e4fd209199cbc5cc83503a6a790",
+        "run": "outputs/rear-view-validation/runs/20260911T180850.533895Z-cd68a1ef",
+        "metrics": {
+          "detections": 2,
+          "events": 0,
+          "frames_processed": 1
+        },
+        "privacy": false,
+        "privacy_reason": "reviewed_rear_view_sample:utility-rear-view:no_visible_faces"
+      },
+      {
+        "scene": "waterfront-rear-view",
+        "source_sha256": "299cbb15879dd5b34fab7b8f7455eb519bfd603f25fe8ef1651bd4fa4c143965",
+        "run": "outputs/rear-view-validation/runs/20260911T180853.529880Z-5c41be2c",
+        "metrics": {
+          "detections": 4,
+          "events": 0,
+          "frames_processed": 1
+        },
+        "privacy": false,
+        "privacy_reason": "reviewed_rear_view_sample:waterfront-rear-view:no_visible_faces"
+      },
+      {
+        "scene": "piling-rear-view",
+        "source_sha256": "804494805fabf316d500812711fc8f7dfdf466b86c2aee77e1e898a15f723ccf",
+        "run": "outputs/rear-view-validation/runs/20260911T180854.794050Z-e754b43e",
+        "metrics": {
+          "detections": 4,
+          "events": 1,
+          "frames_processed": 1
+        },
+        "privacy": false,
+        "privacy_reason": "reviewed_rear_view_sample:piling-rear-view:no_visible_faces"
+      }
+    ]
+  }
 }

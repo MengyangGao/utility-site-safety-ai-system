@@ -514,7 +514,12 @@ def web() -> None:
         str(app_path),
         "--server.address=127.0.0.1",
         "--browser.gatherUsageStats=false",
-        "--theme.base=dark",
+        "--theme.base=light",
+        "--theme.primaryColor=#16354a",
+        "--theme.backgroundColor=#f7f8fa",
+        "--theme.secondaryBackgroundColor=#edf1f5",
+        "--theme.textColor=#172a3a",
+        "--client.toolbarMode=minimal",
     ]
     try:
         subprocess.run(command, check=True)

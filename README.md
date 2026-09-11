@@ -11,7 +11,7 @@
 A local construction and infrastructure monitoring demo with bundled PPE models,
 zone policies, temporary tracking, private evidence and durable integrations.
 
-![Running monitoring dashboard](docs/assets/dashboard-v2.2.png)
+![Rear-view inspection workspace](docs/assets/dashboard-v2.2.png)
 
 [Quick start](#quick-start) · [Operating guide](docs/guide.md) · [Integrations](docs/integrations.md) · [Validation](docs/modernization.md)
 
@@ -24,8 +24,9 @@ zone policies, temporary tracking, private evidence and durable integrations.
   dwell times, consecutive-frame confirmation and repeat-alert cooldowns.
 - Keeps live capture bounded: open/read timeouts, TCP by default for RTSP, a latest-frame
   mailbox, reconnect budgets, stale-frame rejection and explicit continuity segments.
-- Redacts detected faces or estimated head regions before saving evidence. Privacy is enabled
-  by default in both the CLI and dashboard. Model usage analytics are disabled in this process.
+- Redacts detected faces or estimated head regions before saving uploaded/camera evidence.
+  Three reviewed rear-view photo examples can remain clear, with their exact file hash and privacy
+  reason recorded. Model usage analytics are disabled in this process.
 - Records annotated media, snapshots, source/model hashes, events, observation lifecycles,
   capture timestamps and processing diagnostics.
 - Delivers events during inference through a durable SQLite outbox. Supports signed webhooks,
@@ -48,9 +49,10 @@ uv sync --locked
 uv run utility-safety-ai web
 ```
 
-Open **http://127.0.0.1:8501**, keep the PPE model and privacy blur selected, and choose
-**Run included sample**. Results open automatically. You can also upload an image or video,
-inspect evidence, save review decisions and download the report.
+Open **http://127.0.0.1:8501**, choose a scene and select **Run included sample**.
+The three real construction photos show workers from behind, without visible faces; the reviewed
+sample stays clear while uploads retain privacy protection by default. Results open automatically.
+You can inspect evidence, record a review decision and download the report.
 
 The two small checkpoints and example inputs ship in both the checkout and wheel. A default run
 does not download a model. For pip/Conda environments, `pip install .` is also supported; `uv.lock`
@@ -61,8 +63,9 @@ PyTorch wheel on macOS. See [development](docs/development.md) for GPU environme
 
 ```bash
 uv run utility-safety-ai infer-image \
-  --source examples/sample_images/construction_site_ppe_01.jpg \
-  --zones examples/zones_construction_site_ppe_01.yaml \
+  --source examples/sample_images/piling_rear_view_01.jpg \
+  --zones examples/zones_piling_rear_view.yaml \
+  --no-blur-faces \
   --output outputs/image-demo
 
 uv run utility-safety-ai infer-video \
@@ -80,12 +83,25 @@ only when unredacted output is intentional. `--profile` selects a heuristic oper
 profile names do not represent measured accuracy guarantees.
 
 <details>
-<summary>Video playback and review workspace</summary>
+<summary>Inspection results and evidence review</summary>
 
-![Real annotated H.264 playback in Chromium](docs/assets/video-v2.2.png)
+![Real rear-view PPE inference, without unnecessary blur](docs/assets/review-v2.2.png)
 ![Evidence and append-only review controls](docs/assets/review-details-v2.2.png)
+<img src="docs/assets/mobile-v2.2.png" width="300" alt="Mobile inspection workspace">
 
 </details>
+
+## Sample scenes
+
+| Scene | What to inspect |
+| --- | --- |
+| Utility corridor | Rear-view helmet and reflective jacket; PPE observations only |
+| Waterfront crew | Two workers from behind; review headwear/vest detections and omissions |
+| Piling works | Full-body rear view; an illustrative plant-access boundary |
+
+No automatic claim of anonymity is made for arbitrary inputs. The clear-sample option applies
+only to the exact reviewed files; changing a file invalidates that exception. People and
+organizations pictured do not endorse the project. See [sources and usage](docs/legal/sample-photos.md).
 
 ## Pipeline
 
@@ -167,5 +183,7 @@ uv build
 
 [Development and optional integration checks](docs/development.md) · [Model evaluation](docs/model-evaluation/ppe_yolo11n-v1/README.md)
 
-Released under [AGPL-3.0](LICENSE). Bundled models and dataset-derived examples retain their
-recorded licenses and provenance. This software assists visual review; a human must assess alerts.
+Code is released under [AGPL-3.0](LICENSE). The three rear-view photographs retain the separate
+[Pexels License and photographer credits](docs/legal/sample-photos.md); they are not relicensed
+as AGPL or used as ground-truth safety labels. Other models and examples retain their recorded
+licenses. This software assists visual review; a human must assess alerts.

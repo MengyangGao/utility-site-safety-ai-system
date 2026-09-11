@@ -17,24 +17,24 @@ RISK_COLORS = {
     "low": (0, 200, 0),
     "medium": (0, 200, 255),
     "high": (0, 100, 255),
-    "critical": (0, 0, 230),
+    "critical": (66, 75, 208),
 }
 
-PERSON_COLOR = (255, 140, 0)
+PERSON_COLOR = (170, 121, 43)
 POSITIVE_PPE_COLORS = {
-    "helmet": (0, 180, 0),
-    "vest": (0, 180, 0),
-    "gloves": (0, 180, 0),
-    "boots": (0, 180, 0),
-    "goggles": (0, 180, 0),
+    "helmet": (116, 139, 37),
+    "vest": (116, 139, 37),
+    "gloves": (116, 139, 37),
+    "boots": (116, 139, 37),
+    "goggles": (116, 139, 37),
 }
 NEGATIVE_PPE_COLORS = {
-    "no_helmet": (0, 0, 230),
-    "no_vest": (0, 0, 230),
-    "no_gloves": (0, 0, 230),
-    "no_boots": (0, 0, 230),
-    "no_goggles": (0, 0, 230),
-    "no_goggle": (0, 0, 230),
+    "no_helmet": (66, 75, 208),
+    "no_vest": (66, 75, 208),
+    "no_gloves": (66, 75, 208),
+    "no_boots": (66, 75, 208),
+    "no_goggles": (66, 75, 208),
+    "no_goggle": (66, 75, 208),
 }
 ANNOTATED_CLASSES = {"person", *POSITIVE_PPE_COLORS, *NEGATIVE_PPE_COLORS}
 
@@ -95,7 +95,8 @@ class _TextRenderer:
             cv2.FONT_HERSHEY_SIMPLEX,
             font_scale,
             color,
-            1,
+            max(1, round(font_scale * 1.5)),
+            cv2.LINE_AA,
         )
 
     def flush(self, image: np.ndarray) -> None:
@@ -224,7 +225,7 @@ def draw_zones(
             text_renderer=renderer,
         )
     # Blend overlay for a subtle fill.
-    cv2.addWeighted(overlay, 0.18, image, 0.82, 0, image)
+    cv2.addWeighted(overlay, 0.10, image, 0.90, 0, image)
     if text_renderer is None:
         renderer.flush(image)
 
@@ -238,6 +239,9 @@ def draw_detections(
     """Render bounding boxes and class labels with simple label de-cluttering."""
     renderer = text_renderer or _TextRenderer()
     occupied: list[tuple[int, int, int, int]] = []
+    scale = max(1.0, image.shape[1] / 1280)
+    font_scale = 0.5 * scale
+    thickness = max(2, round(2 * scale))
     for det in detections:
         # General COCO checkpoints may also return benches, vehicles, bags,
         # etc. Keep those records in the detection audit log, but do not let
@@ -246,14 +250,14 @@ def draw_detections(
             continue
         x1, y1, x2, y2 = map(int, det.bbox)
         color = _detection_color(det.class_name)
-        cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
+        cv2.rectangle(image, (x1, y1), (x2, y2), color, thickness, cv2.LINE_AA)
 
         label = f"{class_label(det.class_name)} {det.confidence:.2f}"
         if det.track_id is not None:
             label += f" #{det.track_id}"
 
-        tw, th = _text_size(label, 0.45)
-        tx = max(4, x1)
+        tw, th = _text_size(label, font_scale)
+        tx = max(4, min(x1, image.shape[1] - tw - 14))
         # Start above the box; if there is not enough room, place inside the box.
         ty = max(th + 6, y1 - 4)
         if ty - th - 5 < 0:
@@ -263,7 +267,7 @@ def draw_detections(
         label_rect = (tx, ty - th - 5, tx + tw + 4, ty + 2)
         attempts = 0
         while any(_rects_intersect(label_rect, occ) for occ in occupied) and attempts < 10:
-            ty += 16
+            ty += th + 10
             label_rect = (tx, ty - th - 5, tx + tw + 4, ty + 2)
             attempts += 1
 
@@ -274,7 +278,7 @@ def draw_detections(
             tx,
             ty,
             color,
-            font_scale=0.45,
+            font_scale=font_scale,
             text_renderer=renderer,
         )
 
@@ -389,11 +393,12 @@ def _draw_label(
     tw, th = _text_size(text, font_scale)
     tx = max(4, x)
     ty = max(th + 6, y)
-    cv2.rectangle(image, (tx, ty - th - 5), (tx + tw + 4, ty + 2), color, -1)
+    cv2.rectangle(image, (tx, ty - th - 6), (tx + tw + 12, ty + 4), (52, 39, 25), -1)
+    cv2.rectangle(image, (tx, ty - th - 6), (tx + 3, ty + 4), color, -1)
     _draw_text(
         image,
         text,
-        tx + 2,
+        tx + 7,
         ty,
         (255, 255, 255),
         font_scale,

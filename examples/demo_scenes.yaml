@@ -1,0 +1,35 @@
+scenes:
+- id: utility-rear-view
+  title: Utility corridor · rear view
+  image: sample_images/utility_rear_view_01.jpg
+  zones: zones_ppe_only.yaml
+  description: A close view of a helmet and reflective work jacket. Use this scene
+    to inspect PPE observations; the feet are outside the frame, so no ground-zone
+    policy is applied.
+  attribution: Jan Zakelj / Pexels
+  source_url: https://www.pexels.com/photo/back-view-of-a-person-wearing-white-hard-hat-and-reflectorize-jacket-13182107/
+  license: Pexels License
+  sha256: a4e85ea8e526b1eff99bc7954cd8361b55b18e4fd209199cbc5cc83503a6a790
+  no_visible_faces: true
+- id: waterfront-rear-view
+  title: Waterfront crew · rear view
+  image: sample_images/waterfront_rear_view_01.jpg
+  zones: zones_ppe_only.yaml
+  description: Two workers seen from behind in orange reflective vests. Inspect the
+    model’s headwear and PPE observations, including missed or incorrect detections.
+  attribution: Nazmul Haque / Pexels
+  source_url: https://www.pexels.com/photo/construction-workers-at-waterfront-site-35861510/
+  license: Pexels License
+  sha256: 299cbb15879dd5b34fab7b8f7455eb519bfd603f25fe8ef1651bd4fa4c143965
+  no_visible_faces: true
+- id: piling-rear-view
+  title: Piling works · access zone
+  image: sample_images/piling_rear_view_01.jpg
+  zones: zones_piling_rear_view.yaml
+  description: A full-body rear view with visible ground contact. The included example
+    boundary demonstrates a plant-access observation for human review.
+  attribution: MO ZHOU / Pexels
+  source_url: https://www.pexels.com/photo/man-in-uniform-working-at-construction-site-4311990/
+  license: Pexels License
+  sha256: 804494805fabf316d500812711fc8f7dfdf466b86c2aee77e1e898a15f723ccf
+  no_visible_faces: true

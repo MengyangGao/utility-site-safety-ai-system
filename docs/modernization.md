@@ -69,4 +69,20 @@ disk and returned events in memory; the default camera duration is bounded to fi
 Privacy redaction is best effort. Review labels and SQLite history do not provide enterprise
 identity, tamper-proof audit storage or secure erasure.
 
-All modernization work remains local on `modernization/2026-local`. No push or release was made.
+## Rear-view examples and workspace update
+
+The next pass replaces the dashboard's default example with three attributed real photographs of
+workers seen from behind. Only exact hash-matched, visually reviewed samples may skip redaction;
+uploaded images/videos and camera inputs keep their own privacy setting. The reason is retained
+in each image run manifest. The original dataset images and pan video remain regression fixtures.
+
+The interface now uses a light inspection layout, a compact header, a scene-first workflow,
+collapsed advanced settings, quieter annotation labels and a dedicated observations/download panel.
+Screenshots are captured from the working app. The new suite passes 190 tests on Python 3.11;
+coverage is 81.26%. Real-model runs on the three photos returned 2, 4 and 4 detections respectively,
+with 0, 0 and 1 events under their example policies. Those counts are functional observations,
+not accuracy results. The browser smoke checks clear samples, ordinary upload redaction, a real
+zone event, report hashes, H.264 playback and mobile layout.
+
+Updates are being pushed to `main` with the owner's authorization. The [CI matrix](https://github.com/MengyangGao/utility-site-safety-ai-system/actions/workflows/ci.yml)
+records remote platform results. No release, deployment or physical-camera operation was performed.

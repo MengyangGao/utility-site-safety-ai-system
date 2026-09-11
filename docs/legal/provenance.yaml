@@ -2,10 +2,11 @@ schema_version: 2
 policy:
   scope: bundled models, media, and generated evaluation artifacts
   allowed_licenses:
-    - AGPL-3.0-only
-    - CC0-1.0
-  rule: every audited artifact must have an exact source or derivation, SHA-256, and approved license
-
+  - AGPL-3.0-only
+  - CC0-1.0
+  - LicenseRef-Pexels
+  rule: every audited artifact must have an exact source or derivation, SHA-256, and
+    approved license
 sources:
   construction-ppe:
     name: Ultralytics Construction-PPE 1.0.0
@@ -22,158 +23,211 @@ sources:
     name: PickPik public-domain construction worker photo
     url: https://www.pickpik.com/construction-worker-work-worker-man-industry-building-site-45119
     license: CC0-1.0
-
+  pexels-13182107:
+    name: Utility corridor · rear view
+    url: https://www.pexels.com/photo/back-view-of-a-person-wearing-white-hard-hat-and-reflectorize-jacket-13182107/
+    author: Jan Zakelj / Pexels
+    license: LicenseRef-Pexels
+    license_url: https://www.pexels.com/license/
+    download: https://images.pexels.com/photos/13182107/pexels-photo-13182107.jpeg?cs=srgb&dl=pexels-janzakelj-13182107.jpg&fm=jpg
+    usage: Individually licensed application demonstration asset; no endorsement or
+      claim about actual site safety.
+  pexels-35861510:
+    name: Waterfront crew · rear view
+    url: https://www.pexels.com/photo/construction-workers-at-waterfront-site-35861510/
+    author: Nazmul Haque / Pexels
+    license: LicenseRef-Pexels
+    license_url: https://www.pexels.com/license/
+    download: https://images.pexels.com/photos/35861510/pexels-photo-35861510.jpeg?cs=srgb&dl=pexels-nazmul-haque-2159044929-35861510.jpg&fm=jpg
+    usage: Individually licensed application demonstration asset; no endorsement or
+      claim about actual site safety.
+  pexels-4311990:
+    name: Piling works · access zone
+    url: https://www.pexels.com/photo/man-in-uniform-working-at-construction-site-4311990/
+    author: MO ZHOU / Pexels
+    license: LicenseRef-Pexels
+    license_url: https://www.pexels.com/license/
+    download: https://images.pexels.com/photos/4311990/pexels-photo-4311990.jpeg?cs=srgb&dl=pexels-mo-zhou-2769438-4311990.jpg&fm=jpg
+    usage: Individually licensed application demonstration asset; no endorsement or
+      claim about actual site safety.
 artifacts:
-  - path: examples/sample_images/construction_zone_01.jpg
-    sha256: 0e7e0ad384be95cda57b7a93ea0ffdcf65f3ca9062e412bf54a5e37adab4f402
-    license: CC0-1.0
-    source: pickpik-construction-zone
-  - path: examples/sample_images/construction_site_ppe_01.jpg
-    sha256: 55f3e120b8f0101ee02ad8e138ec73f06e398225d98cdc990dd4ba7c510992c4
-    license: AGPL-3.0-only
-    source: construction-ppe
-    upstream_path: images/val/image1085.jpg
-  - path: examples/sample_images/construction_worker_gloves_01.jpg
-    sha256: af76cd3cf97e1a5acd1ae30ab841059f97af8a33627fdbc9b31ebb5469f21c63
-    license: AGPL-3.0-only
-    source: construction-ppe
-    upstream_path: images/val/image1049.jpg
-  - path: examples/sample_videos/construction_ppe_pan.mp4
-    sha256: 8eb60e3826b46c210a9a8595c928143f1799cd62bfaa4a320c1ae387860173df
-    license: AGPL-3.0-only
-    derived_from: examples/sample_images/construction_site_ppe_01.jpg
-    generated_by: utility_safety_ai.tools.make_demo_assets
-  - path: docs/assets/annotated-ppe-zone.jpg
-    sha256: 7b88715d8e1de5dedbb515316806a65ebbd1374b7e016b861204725ddfc014ff
-    license: AGPL-3.0-only
-    derived_from: examples/sample_images/construction_site_ppe_01.jpg
-    generated_by: utility-safety-ai infer-image
-    privacy_redaction: enabled
-  - path: docs/assets/annotated-zone.jpg
-    sha256: 741b6b5a2eebf757869a8cb08e183b49cf539e10d3b7fe0c425b21a0672fe1e9
-    license: CC0-1.0
-    derived_from: examples/sample_images/construction_zone_01.jpg
-    generated_by: utility-safety-ai infer-image
-    privacy_redaction: enabled
-  - path: docs/assets/ppe-detection-result.jpg
-    sha256: 0b66da5fb2145579cc272954b9114293e6b87ef310f42c7e3f284b089e297f11
-    license: AGPL-3.0-only
-    derived_from: examples/sample_images/construction_worker_gloves_01.jpg
-    generated_by: utility-safety-ai infer-image
-    privacy_redaction: enabled
-  - path: docs/assets/safety-monitoring-demo.mp4
-    sha256: 30687210787195f025142139d4353a2a548942bba8bf059819b1e850ed54f18b
-    license: AGPL-3.0-only
-    derived_from: examples/sample_videos/construction_ppe_pan.mp4
-    generated_by: utility-safety-ai infer-video
-    privacy_redaction: enabled
-  - path: docs/assets/safety-monitoring-demo.gif
-    sha256: ba4222687ef2e142af56506175f00f04c2503a638319ef603c12816bddc8b0a5
-    license: AGPL-3.0-only
-    derived_from: docs/assets/safety-monitoring-demo.mp4
-    generated_by: ffmpeg
-    privacy_redaction: enabled
-  - path: docs/assets/annotated-video-frame.jpg
-    sha256: 01d3b5802d87b3dc2630ca71e7036238860cc4deda1a58150a2a0356a739f2cc
-    license: AGPL-3.0-only
-    derived_from: docs/assets/safety-monitoring-demo.mp4
-    generated_by: ffmpeg
-    privacy_redaction: enabled
-  - path: docs/assets/annotated-video-frame-2.jpg
-    sha256: 058e6eb6679a6eca429b38dc003f87130dc64915955c9a0490760ddc1c150f83
-    license: AGPL-3.0-only
-    derived_from: docs/assets/safety-monitoring-demo.mp4
-    generated_by: ffmpeg
-    privacy_redaction: enabled
-  - path: docs/assets/web-dashboard.jpg
-    sha256: 20ff9dc08099a865876edd11770f9f43409c86546baa256ff10184d1502e95b3
-    license: AGPL-3.0-only
-    derived_from: src/utility_safety_ai/web/app.py
-    generated_by: browser screenshot
-  - path: models/yolo11n.pt
-    sha256: 0ebbc80d4a7680d14987a577cd21342b65ecfd94632bd9a8da63ae6417644ee1
-    license: AGPL-3.0-only
-    source: yolo11
-  - path: models/ppe_yolo11n.pt
-    sha256: b05d39dba9d9a5a19855b9cc7dc4c613e979a64a280929e593522685c19cefff
-    license: AGPL-3.0-only
-    source: construction-ppe
-    derived_from: models/yolo11n.pt
-  - path: docs/model-evaluation/ppe_yolo11n-v1/benchmark.json
-    sha256: 5529318660a7ba7f8a1fda2215d94dff1d8e4493634a71c28090289dd0537de1
-    hash_mode: text-lf
-    license: AGPL-3.0-only
-    source: yolo11
-    generated_by: utility_safety_ai.tools.benchmark
-  - path: docs/model-evaluation/ppe_yolo11n-v1/confusion-matrix-normalized.png
-    sha256: 8806aa44405041035fec98960c4e71ce34abbf477a1415fb043d740fd4b828a7
-    license: AGPL-3.0-only
-    source: construction-ppe
-    generated_by: utility_safety_ai.tools.validate_ppe_model
-  - path: docs/model-evaluation/ppe_yolo11n-v1/confusion-matrix.png
-    sha256: 9f10da279351a13742d72d4b2798abcf16233dee8f1c1169531d1f12a51deca8
-    license: AGPL-3.0-only
-    source: construction-ppe
-    generated_by: utility_safety_ai.tools.validate_ppe_model
-  - path: docs/model-evaluation/ppe_yolo11n-v1/f1-curve.png
-    sha256: 604c53b1769cbdd888dccd5c2135a3bc8015f8604467df02c9b23934041f4074
-    license: AGPL-3.0-only
-    source: construction-ppe
-    generated_by: utility_safety_ai.tools.validate_ppe_model
-  - path: docs/model-evaluation/ppe_yolo11n-v1/metadata.json
-    sha256: a9afdfe8a371bd696616ebff7d0b97637cfb22989f92bd29424140d8728f658a
-    hash_mode: text-lf
-    license: AGPL-3.0-only
-    source: construction-ppe
-    generated_by: utility_safety_ai.tools.validate_ppe_model
-  - path: docs/model-evaluation/ppe_yolo11n-v1/metrics.json
-    sha256: a19dd9cd2721dadc18863027c5828e860ac6c4d8410ab53ed8d03f93340fa96d
-    hash_mode: text-lf
-    license: AGPL-3.0-only
-    source: construction-ppe
-    generated_by: utility_safety_ai.tools.validate_ppe_model
-  - path: docs/model-evaluation/ppe_yolo11n-v1/pr-curve.png
-    sha256: 41193ed0d60166dca0e52245fd672e167a58aac346baefc87f0b85e638c48cdf
-    license: AGPL-3.0-only
-    source: construction-ppe
-    generated_by: utility_safety_ai.tools.validate_ppe_model
-  - path: docs/model-evaluation/ppe_yolo11n-v1/precision-curve.png
-    sha256: 7861224a50ea2c220a93582ffc424c02b4894041e94050e11538f5f5ab85877e
-    license: AGPL-3.0-only
-    source: construction-ppe
-    generated_by: utility_safety_ai.tools.validate_ppe_model
-  - path: docs/model-evaluation/ppe_yolo11n-v1/recall-curve.png
-    sha256: 371db8cd2282eb14495935ea4388afba557263563acd9c3395f005140fbb63ff
-    license: AGPL-3.0-only
-    source: construction-ppe
-    generated_by: utility_safety_ai.tools.validate_ppe_model
-  - path: docs/model-evaluation/ppe_yolo11n-v1/training-args.yaml
-    sha256: 16624f628cbbf77aad7883ddb15a1ff791f33fca155baa0e6625b2595d8eaf50
-    hash_mode: text-lf
-    license: AGPL-3.0-only
-    source: construction-ppe
-    generated_by: utility-safety-ai train
-  - path: docs/model-evaluation/ppe_yolo11n-v1/training-results.csv
-    sha256: c8f49ff736cc8630ce7e2d64f13ef5a085065d8d36da5d249c524975341a96cb
-    hash_mode: text-lf
-    license: AGPL-3.0-only
-    source: construction-ppe
-    generated_by: utility-safety-ai train
-  - path: docs/assets/dashboard-v2.2.png
-    sha256: 8b4adfdb04420be567c043e8818af215db4b02745b6a70bb4d4fcac22ca48819
-    license: AGPL-3.0-only
-    derived_from: examples/sample_images/construction_site_ppe_01.jpg
-    generated_by: tools/smoke_web.py (Chromium capture of the running local app)
-    privacy_redaction: enabled
-  - path: docs/assets/review-details-v2.2.png
-    sha256: f31a555197a839b75edbb5a02a018808689a3c2da2989206b599c455078ab0f8
-    license: AGPL-3.0-only
-    derived_from: examples/sample_images/construction_site_ppe_01.jpg
-    generated_by: tools/smoke_web.py (Chromium capture of the running local app)
-    privacy_redaction: enabled
-  - path: docs/assets/video-v2.2.png
-    sha256: a0b8a830b752737594c77fd034e7e17e8446eaf27e3a9e2f64f6aa255413f6be
-    license: AGPL-3.0-only
-    derived_from: examples/sample_images/construction_site_ppe_01.jpg
-    generated_by: tools/smoke_web.py (Chromium capture of the running local app)
-    privacy_redaction: enabled
+- path: examples/sample_images/construction_zone_01.jpg
+  sha256: 0e7e0ad384be95cda57b7a93ea0ffdcf65f3ca9062e412bf54a5e37adab4f402
+  license: CC0-1.0
+  source: pickpik-construction-zone
+- path: examples/sample_images/construction_site_ppe_01.jpg
+  sha256: 55f3e120b8f0101ee02ad8e138ec73f06e398225d98cdc990dd4ba7c510992c4
+  license: AGPL-3.0-only
+  source: construction-ppe
+  upstream_path: images/val/image1085.jpg
+- path: examples/sample_images/construction_worker_gloves_01.jpg
+  sha256: af76cd3cf97e1a5acd1ae30ab841059f97af8a33627fdbc9b31ebb5469f21c63
+  license: AGPL-3.0-only
+  source: construction-ppe
+  upstream_path: images/val/image1049.jpg
+- path: examples/sample_videos/construction_ppe_pan.mp4
+  sha256: 8eb60e3826b46c210a9a8595c928143f1799cd62bfaa4a320c1ae387860173df
+  license: AGPL-3.0-only
+  derived_from: examples/sample_images/construction_site_ppe_01.jpg
+  generated_by: utility_safety_ai.tools.make_demo_assets
+- path: docs/assets/annotated-ppe-zone.jpg
+  sha256: 7b88715d8e1de5dedbb515316806a65ebbd1374b7e016b861204725ddfc014ff
+  license: AGPL-3.0-only
+  derived_from: examples/sample_images/construction_site_ppe_01.jpg
+  generated_by: utility-safety-ai infer-image
+  privacy_redaction: enabled
+- path: docs/assets/annotated-zone.jpg
+  sha256: 741b6b5a2eebf757869a8cb08e183b49cf539e10d3b7fe0c425b21a0672fe1e9
+  license: CC0-1.0
+  derived_from: examples/sample_images/construction_zone_01.jpg
+  generated_by: utility-safety-ai infer-image
+  privacy_redaction: enabled
+- path: docs/assets/ppe-detection-result.jpg
+  sha256: 0b66da5fb2145579cc272954b9114293e6b87ef310f42c7e3f284b089e297f11
+  license: AGPL-3.0-only
+  derived_from: examples/sample_images/construction_worker_gloves_01.jpg
+  generated_by: utility-safety-ai infer-image
+  privacy_redaction: enabled
+- path: docs/assets/safety-monitoring-demo.mp4
+  sha256: 30687210787195f025142139d4353a2a548942bba8bf059819b1e850ed54f18b
+  license: AGPL-3.0-only
+  derived_from: examples/sample_videos/construction_ppe_pan.mp4
+  generated_by: utility-safety-ai infer-video
+  privacy_redaction: enabled
+- path: docs/assets/safety-monitoring-demo.gif
+  sha256: ba4222687ef2e142af56506175f00f04c2503a638319ef603c12816bddc8b0a5
+  license: AGPL-3.0-only
+  derived_from: docs/assets/safety-monitoring-demo.mp4
+  generated_by: ffmpeg
+  privacy_redaction: enabled
+- path: docs/assets/annotated-video-frame.jpg
+  sha256: 01d3b5802d87b3dc2630ca71e7036238860cc4deda1a58150a2a0356a739f2cc
+  license: AGPL-3.0-only
+  derived_from: docs/assets/safety-monitoring-demo.mp4
+  generated_by: ffmpeg
+  privacy_redaction: enabled
+- path: docs/assets/annotated-video-frame-2.jpg
+  sha256: 058e6eb6679a6eca429b38dc003f87130dc64915955c9a0490760ddc1c150f83
+  license: AGPL-3.0-only
+  derived_from: docs/assets/safety-monitoring-demo.mp4
+  generated_by: ffmpeg
+  privacy_redaction: enabled
+- path: docs/assets/web-dashboard.jpg
+  sha256: 20ff9dc08099a865876edd11770f9f43409c86546baa256ff10184d1502e95b3
+  license: AGPL-3.0-only
+  derived_from: src/utility_safety_ai/web/app.py
+  generated_by: browser screenshot
+- path: models/yolo11n.pt
+  sha256: 0ebbc80d4a7680d14987a577cd21342b65ecfd94632bd9a8da63ae6417644ee1
+  license: AGPL-3.0-only
+  source: yolo11
+- path: models/ppe_yolo11n.pt
+  sha256: b05d39dba9d9a5a19855b9cc7dc4c613e979a64a280929e593522685c19cefff
+  license: AGPL-3.0-only
+  source: construction-ppe
+  derived_from: models/yolo11n.pt
+- path: docs/model-evaluation/ppe_yolo11n-v1/benchmark.json
+  sha256: 5529318660a7ba7f8a1fda2215d94dff1d8e4493634a71c28090289dd0537de1
+  hash_mode: text-lf
+  license: AGPL-3.0-only
+  source: yolo11
+  generated_by: utility_safety_ai.tools.benchmark
+- path: docs/model-evaluation/ppe_yolo11n-v1/confusion-matrix-normalized.png
+  sha256: 8806aa44405041035fec98960c4e71ce34abbf477a1415fb043d740fd4b828a7
+  license: AGPL-3.0-only
+  source: construction-ppe
+  generated_by: utility_safety_ai.tools.validate_ppe_model
+- path: docs/model-evaluation/ppe_yolo11n-v1/confusion-matrix.png
+  sha256: 9f10da279351a13742d72d4b2798abcf16233dee8f1c1169531d1f12a51deca8
+  license: AGPL-3.0-only
+  source: construction-ppe
+  generated_by: utility_safety_ai.tools.validate_ppe_model
+- path: docs/model-evaluation/ppe_yolo11n-v1/f1-curve.png
+  sha256: 604c53b1769cbdd888dccd5c2135a3bc8015f8604467df02c9b23934041f4074
+  license: AGPL-3.0-only
+  source: construction-ppe
+  generated_by: utility_safety_ai.tools.validate_ppe_model
+- path: docs/model-evaluation/ppe_yolo11n-v1/metadata.json
+  sha256: a9afdfe8a371bd696616ebff7d0b97637cfb22989f92bd29424140d8728f658a
+  hash_mode: text-lf
+  license: AGPL-3.0-only
+  source: construction-ppe
+  generated_by: utility_safety_ai.tools.validate_ppe_model
+- path: docs/model-evaluation/ppe_yolo11n-v1/metrics.json
+  sha256: a19dd9cd2721dadc18863027c5828e860ac6c4d8410ab53ed8d03f93340fa96d
+  hash_mode: text-lf
+  license: AGPL-3.0-only
+  source: construction-ppe
+  generated_by: utility_safety_ai.tools.validate_ppe_model
+- path: docs/model-evaluation/ppe_yolo11n-v1/pr-curve.png
+  sha256: 41193ed0d60166dca0e52245fd672e167a58aac346baefc87f0b85e638c48cdf
+  license: AGPL-3.0-only
+  source: construction-ppe
+  generated_by: utility_safety_ai.tools.validate_ppe_model
+- path: docs/model-evaluation/ppe_yolo11n-v1/precision-curve.png
+  sha256: 7861224a50ea2c220a93582ffc424c02b4894041e94050e11538f5f5ab85877e
+  license: AGPL-3.0-only
+  source: construction-ppe
+  generated_by: utility_safety_ai.tools.validate_ppe_model
+- path: docs/model-evaluation/ppe_yolo11n-v1/recall-curve.png
+  sha256: 371db8cd2282eb14495935ea4388afba557263563acd9c3395f005140fbb63ff
+  license: AGPL-3.0-only
+  source: construction-ppe
+  generated_by: utility_safety_ai.tools.validate_ppe_model
+- path: docs/model-evaluation/ppe_yolo11n-v1/training-args.yaml
+  sha256: 16624f628cbbf77aad7883ddb15a1ff791f33fca155baa0e6625b2595d8eaf50
+  hash_mode: text-lf
+  license: AGPL-3.0-only
+  source: construction-ppe
+  generated_by: utility-safety-ai train
+- path: docs/model-evaluation/ppe_yolo11n-v1/training-results.csv
+  sha256: c8f49ff736cc8630ce7e2d64f13ef5a085065d8d36da5d249c524975341a96cb
+  hash_mode: text-lf
+  license: AGPL-3.0-only
+  source: construction-ppe
+  generated_by: utility-safety-ai train
+- path: docs/assets/dashboard-v2.2.png
+  sha256: 4538d0881a3c47982d0fa880db2d1e12773ca1815ca944fb8fa5da0cb07708b2
+  license: LicenseRef-Pexels
+  derived_from: examples/sample_images/utility_rear_view_01.jpg
+  generated_by: tools/smoke_web.py; real Chromium capture
+  privacy_redaction: not_required_for_hash_reviewed_rear_view_sample
+- path: docs/assets/review-details-v2.2.png
+  sha256: bbf030295eb524149c4961c917b8061b2c2927be8962c16fcb7622791768bf00
+  license: LicenseRef-Pexels
+  derived_from: examples/sample_images/piling_rear_view_01.jpg
+  generated_by: tools/smoke_web.py; real Chromium capture
+  privacy_redaction: not_required_for_hash_reviewed_rear_view_sample
+- path: docs/assets/video-v2.2.png
+  sha256: a0b8a830b752737594c77fd034e7e17e8446eaf27e3a9e2f64f6aa255413f6be
+  license: AGPL-3.0-only
+  derived_from: examples/sample_images/construction_site_ppe_01.jpg
+  generated_by: tools/smoke_web.py (Chromium capture of the running local app)
+  privacy_redaction: enabled
+- path: examples/sample_images/utility_rear_view_01.jpg
+  sha256: a4e85ea8e526b1eff99bc7954cd8361b55b18e4fd209199cbc5cc83503a6a790
+  license: LicenseRef-Pexels
+  source: pexels-13182107
+  privacy_review: Rear view, no visible face; exact file reviewed 2026-09-12.
+- path: examples/sample_images/waterfront_rear_view_01.jpg
+  sha256: 299cbb15879dd5b34fab7b8f7455eb519bfd603f25fe8ef1651bd4fa4c143965
+  license: LicenseRef-Pexels
+  source: pexels-35861510
+  privacy_review: Rear view, no visible face; exact file reviewed 2026-09-12.
+- path: examples/sample_images/piling_rear_view_01.jpg
+  sha256: 804494805fabf316d500812711fc8f7dfdf466b86c2aee77e1e898a15f723ccf
+  license: LicenseRef-Pexels
+  source: pexels-4311990
+  privacy_review: Rear view, no visible face; exact file reviewed 2026-09-12.
+- path: docs/assets/review-v2.2.png
+  sha256: 9622438d397d7206ecfc093fce7fbcdb5fccb12ebb7c28a8fd3e531dd477ac71
+  license: LicenseRef-Pexels
+  derived_from: examples/sample_images/utility_rear_view_01.jpg
+  generated_by: tools/smoke_web.py; real Chromium capture
+  privacy_redaction: not_required_for_hash_reviewed_rear_view_sample
+- path: docs/assets/mobile-v2.2.png
+  sha256: 14403c22db4b94887ae463e57a78d1459ab3f0aa6a4d01c628d4e4c25b04f3ef
+  license: LicenseRef-Pexels
+  derived_from: examples/sample_images/utility_rear_view_01.jpg
+  generated_by: tools/smoke_web.py; real Chromium capture
+  privacy_redaction: not_required_for_hash_reviewed_rear_view_sample

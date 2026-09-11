@@ -14,7 +14,6 @@ from utility_safety_ai.monitoring.profiles import (
     monitoring_profile_names,
 )
 from utility_safety_ai.web.config import (
-    DEMO_IMAGE,
     LANGUAGES,
     MODEL_PROFILES,
     REPO_ROOT,
@@ -22,6 +21,7 @@ from utility_safety_ai.web.config import (
     text,
 )
 from utility_safety_ai.web.results import render_history, render_run
+from utility_safety_ai.web.samples import load_sample_scenes, sample_settings, sample_zones
 from utility_safety_ai.web.services import (
     AnalysisResult,
     AnalysisSettings,
@@ -71,18 +71,20 @@ def _sidebar_settings() -> AnalysisSettings:
         profile = get_monitoring_profile(profile_name)
         st.caption(profile.description)
 
-        model_label = st.selectbox("Model profile", list(MODEL_PROFILES))
-        use_custom = st.toggle("Advanced custom model", value=False)
-        if use_custom:
-            st.warning("Only load checkpoints you trust. PyTorch weights can contain code.")
-            model_value = st.text_input("Custom model path", value=MODEL_PROFILES[model_label])
-        else:
-            model_value = MODEL_PROFILES[model_label]
-        model_path = _resolve_model_path(model_value)
+        with st.expander("Model & detection"):
+            model_label = st.selectbox("Model profile", list(MODEL_PROFILES))
+            use_custom = st.toggle("Advanced custom model", value=False)
+            if use_custom:
+                st.warning("Only load checkpoints you trust. PyTorch weights can contain code.")
+                model_value = st.text_input("Custom model path", value=MODEL_PROFILES[model_label])
+            else:
+                model_value = MODEL_PROFILES[model_label]
+            model_path = _resolve_model_path(model_value)
 
-        device_label = st.selectbox("Processing device", ["CPU", "Auto", "Apple MPS", "CUDA"])
-        device = {"Auto": None, "CPU": "cpu", "Apple MPS": "mps", "CUDA": "cuda:0"}[device_label]
-        with st.expander("Detection tuning"):
+            device_label = st.selectbox("Processing device", ["CPU", "Auto", "Apple MPS", "CUDA"])
+            device = {"Auto": None, "CPU": "cpu", "Apple MPS": "mps", "CUDA": "cuda:0"}[
+                device_label
+            ]
             confidence = st.slider(
                 "Detection confidence",
                 0.05,
@@ -103,17 +105,18 @@ def _sidebar_settings() -> AnalysisSettings:
 
         st.markdown("### Privacy & reports")
         blur_faces = st.toggle("Privacy blur", value=True)
-        privacy_mode = st.selectbox(
-            "Privacy redaction style",
-            ["gaussian", "pixelate", "solid"],
-            format_func=lambda value: value.title(),
-        )
-        st.radio(
-            "Video processing",
-            ["Complete video", "Quick preview"],
-            horizontal=True,
-            key="video_processing_mode",
-        )
+        with st.expander("Media options"):
+            privacy_mode = st.selectbox(
+                "Privacy redaction style",
+                ["gaussian", "pixelate", "solid"],
+                format_func=lambda value: value.title(),
+            )
+            st.radio(
+                "Video processing",
+                ["Complete video", "Quick preview"],
+                horizontal=True,
+                key="video_processing_mode",
+            )
         st.caption(_t("privacy_note"))
         st.markdown(
             f'<div class="usi-boundary">{_t("not_certified")}</div>',
@@ -213,51 +216,80 @@ def _run_action(operation) -> None:
 
 
 def _monitor_workspace(settings: AnalysisSettings, zones: list, zones_valid: bool) -> None:
-    section(_t("monitor"), _t("workflow"))
     flash = st.session_state.pop("run_flash", None)
     if flash:
         getattr(st, flash[0])(flash[1])
     source_type = st.radio(
         "Source type",
-        ["Image", "Video", "Camera / RTSP"],
+        ["Sample scenes", "Image", "Video", "Camera / RTSP"],
         horizontal=True,
     )
     output_root = Path(st.session_state.web_output_root)
 
-    if source_type == "Image":
+    if source_type == "Sample scenes":
+        scenes = load_sample_scenes()
+        if not scenes:
+            st.info("No bundled sample scenes are available. Choose Image to upload one.")
+            return
+        scene_picker, run_slot = st.columns([3, 1], vertical_alignment="bottom")
+        scene_id = scene_picker.selectbox(
+            "Sample scene", range(len(scenes)), format_func=lambda index: scenes[index].title
+        )
+        scene = scenes[scene_id]
+        left, right = st.columns([1.9, 1], gap="large")
+        with left:
+            st.image(str(scene.image), width="stretch")
+            st.caption(
+                f"Photo: [{scene.attribution}]({scene.source_url}) · [{scene.license}](https://www.pexels.com/license/)"
+            )
+        with right:
+            st.markdown(f"### {scene.title}")
+            st.write(scene.description)
+            use_sample_zone = st.checkbox("Use this scene’s policy", value=True)
+            active_zones = sample_zones(scene) if use_sample_zone else zones
+            if active_zones:
+                st.caption("Zone · " + " / ".join(zone.name for zone in active_zones))
+            else:
+                st.caption("No restricted zone applied.")
+            reviewed = scene.no_visible_faces and scene.matches_reviewed_image()
+            keep_clear = False
+            if reviewed:
+                keep_clear = st.checkbox("Keep rear-view sample clear", value=True)
+                st.markdown(
+                    '<div class="usi-scene-note">This reviewed photo has no visible faces. The sample can stay clear; uploads follow your privacy settings.</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.caption("This scene follows the Privacy blur setting.")
+            if run_slot.button(
+                _t("run_sample"),
+                type="primary",
+                disabled=not zones_valid and not use_sample_zone,
+                width="stretch",
+            ):
+                _run_action(
+                    lambda: analyse_path(
+                        scene.image,
+                        output_root=output_root,
+                        zones=active_zones,
+                        settings=sample_settings(settings, scene, keep_clear=keep_clear),
+                        source_label=scene.title,
+                    )
+                )
+            st.caption(
+                "Runs locally with the selected model. The zone is an illustrative policy, not a judgement about the people in the photo."
+            )
+    elif source_type == "Image":
         upload = st.file_uploader("Upload worksite image", type=["jpg", "jpeg", "png"])
-        sample_available = DEMO_IMAGE.is_file()
-        left, right = st.columns(2)
-        run_upload = left.button(
-            _t("run"),
-            type="primary",
-            disabled=upload is None or not zones_valid,
-            width="stretch",
+        if upload is not None:
+            st.image(upload, width="stretch")
+        run_upload = st.button(
+            _t("run"), type="primary", disabled=upload is None or not zones_valid, width="stretch"
         )
-        run_sample = right.button(
-            _t("run_sample"),
-            disabled=not zones_valid or not sample_available,
-            width="stretch",
-        )
-        if not sample_available:
-            st.caption("The included sample is available when the app runs from the repository.")
         if run_upload and upload is not None:
             _run_action(
                 lambda: analyse_file(
-                    upload,
-                    is_video=False,
-                    output_root=output_root,
-                    zones=zones,
-                    settings=settings,
-                )
-            )
-        if run_sample:
-            _run_action(
-                lambda: analyse_path(
-                    DEMO_IMAGE,
-                    output_root=output_root,
-                    zones=zones,
-                    settings=settings,
+                    upload, is_video=False, output_root=output_root, zones=zones, settings=settings
                 )
             )
     elif source_type == "Video":
@@ -345,11 +377,11 @@ def _monitor_workspace(settings: AnalysisSettings, zones: list, zones_valid: boo
                     )
                 )
 
-    profile = settings.profile
-    cols = st.columns(3)
-    cols[0].metric("Alert confirmation", f"{profile.ppe_confirmation_frames} frames")
-    cols[1].metric("Track memory", f"{profile.tracker_max_age} frames")
-    cols[2].metric("Association threshold", f"{profile.association_min_score:.2f}")
+    with st.expander("Active monitoring settings"):
+        profile = settings.profile
+        st.caption(
+            f"{profile.label} · {profile.ppe_confirmation_frames}-frame confirmation · {profile.tracker_max_age}-frame track memory · association threshold {profile.association_min_score:.2f}"
+        )
 
 
 def main() -> None:
@@ -357,7 +389,7 @@ def main() -> None:
         page_title="Utility Safety Intelligence",
         page_icon="⚡",
         layout="wide",
-        initial_sidebar_state="expanded",
+        initial_sidebar_state="auto",
     )
     initialize_session()
     inject_theme()

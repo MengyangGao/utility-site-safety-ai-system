@@ -8,7 +8,7 @@ from typing import Any
 
 import yaml
 
-APPROVED_LICENSES = frozenset({"AGPL-3.0-only", "CC0-1.0"})
+APPROVED_LICENSES = frozenset({"AGPL-3.0-only", "CC0-1.0", "LicenseRef-Pexels"})
 AUDITED_SUFFIXES = frozenset({".csv", ".gif", ".jpg", ".json", ".mp4", ".png", ".yaml"})
 AUDITED_DIRECTORIES = (
     Path("examples/sample_images"),
