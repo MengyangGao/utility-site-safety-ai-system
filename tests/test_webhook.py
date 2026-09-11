@@ -1,5 +1,6 @@
 """Webhook adapter tests avoid real network access."""
 
+import json
 from contextlib import nullcontext
 from unittest.mock import Mock
 
@@ -35,7 +36,7 @@ def test_webhook_posts_json_without_local_snapshot_path(monkeypatch):
 
     assert webhook.deliver_webhook([_event()], "https://alerts.example.test/hook") == 202
     request = opener.call_args.args[0]
-    assert b'"snapshot_path": null' in request.data
+    assert json.loads(request.data)["events"][0]["snapshot_path"] is None
     assert b"snapshots/private.jpg" not in request.data
 
 

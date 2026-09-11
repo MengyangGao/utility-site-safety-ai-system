@@ -40,8 +40,9 @@ def benchmark(
     image_size: int = 640,
 ) -> dict:
     """Run a simple FPS benchmark for the supplied model and device."""
+    from importlib.metadata import version
+
     import torch
-    import ultralytics
 
     from utility_safety_ai.detection.yolo_detector import YoloDetector
 
@@ -74,7 +75,7 @@ def benchmark(
         "python": platform.python_version(),
         "platform": platform.platform(),
         "torch": torch.__version__,
-        "ultralytics": ultralytics.__version__,
+        "ultralytics": version("ultralytics"),
         "scope": "detector.predict only; excludes decode, tracking, rules, annotation, and I/O",
     }
 
@@ -97,7 +98,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Benchmark PPE model inference FPS.")
     parser.add_argument("--model", default="models/ppe_yolo11n.pt", help="Model path or name.")
     parser.add_argument("--device", default=None, help="Specific device to benchmark.")
-    parser.add_argument("--iterations", default=50, type=int, help="Number of inference iterations.")
+    parser.add_argument(
+        "--iterations", default=50, type=int, help="Number of inference iterations."
+    )
     parser.add_argument("--output", default="outputs/benchmark", help="Output directory.")
     args = parser.parse_args()
 

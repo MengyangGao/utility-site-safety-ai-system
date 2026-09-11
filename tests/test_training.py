@@ -22,7 +22,7 @@ class _FakeYOLO:
 
 
 def test_training_auto_device_is_forwarded(monkeypatch):
-    monkeypatch.setattr(train_yolo, "YOLO", _FakeYOLO)
+    monkeypatch.setattr(train_yolo, "load_yolo", lambda model, **kwargs: _FakeYOLO(model))
     monkeypatch.setattr(train_yolo, "_auto_device", lambda: "cuda:0")
 
     train_yolo.train("construction-ppe.yaml", epochs=1, device=None)
@@ -35,7 +35,7 @@ def test_resume_rejects_stripped_completed_checkpoint(tmp_path, monkeypatch):
     checkpoint = tmp_path / "best.pt"
     checkpoint.write_bytes(b"placeholder")
     _FakeYOLO.checkpoint = {"epoch": -1, "optimizer": None}
-    monkeypatch.setattr(train_yolo, "YOLO", _FakeYOLO)
+    monkeypatch.setattr(train_yolo, "load_yolo", lambda model, **kwargs: _FakeYOLO(model))
 
     with pytest.raises(ValueError, match="unstripped"):
         train_yolo.train("data.yaml", model=str(checkpoint), resume=True)
@@ -45,7 +45,7 @@ def test_resume_forwards_stateful_interrupted_checkpoint(tmp_path, monkeypatch):
     checkpoint = tmp_path / "last.pt"
     checkpoint.write_bytes(b"placeholder")
     _FakeYOLO.checkpoint = {"epoch": 4, "optimizer": {"state": {}}}
-    monkeypatch.setattr(train_yolo, "YOLO", _FakeYOLO)
+    monkeypatch.setattr(train_yolo, "load_yolo", lambda model, **kwargs: _FakeYOLO(model))
 
     train_yolo.train("data.yaml", model=str(checkpoint), resume=True)
 
@@ -54,7 +54,7 @@ def test_resume_forwards_stateful_interrupted_checkpoint(tmp_path, monkeypatch):
 
 
 def test_resume_requires_existing_checkpoint(monkeypatch):
-    monkeypatch.setattr(train_yolo, "YOLO", _FakeYOLO)
+    monkeypatch.setattr(train_yolo, "load_yolo", lambda model, **kwargs: _FakeYOLO(model))
 
     with pytest.raises(FileNotFoundError, match="existing"):
         train_yolo.train("data.yaml", model="missing-last.pt", resume=True)

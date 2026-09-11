@@ -159,3 +159,21 @@ artifacts:
     license: AGPL-3.0-only
     source: construction-ppe
     generated_by: utility-safety-ai train
+  - path: docs/assets/dashboard-v2.2.png
+    sha256: 8b4adfdb04420be567c043e8818af215db4b02745b6a70bb4d4fcac22ca48819
+    license: AGPL-3.0-only
+    derived_from: examples/sample_images/construction_site_ppe_01.jpg
+    generated_by: tools/smoke_web.py (Chromium capture of the running local app)
+    privacy_redaction: enabled
+  - path: docs/assets/review-details-v2.2.png
+    sha256: f31a555197a839b75edbb5a02a018808689a3c2da2989206b599c455078ab0f8
+    license: AGPL-3.0-only
+    derived_from: examples/sample_images/construction_site_ppe_01.jpg
+    generated_by: tools/smoke_web.py (Chromium capture of the running local app)
+    privacy_redaction: enabled
+  - path: docs/assets/video-v2.2.png
+    sha256: a0b8a830b752737594c77fd034e7e17e8446eaf27e3a9e2f64f6aa255413f6be
+    license: AGPL-3.0-only
+    derived_from: examples/sample_images/construction_site_ppe_01.jpg
+    generated_by: tools/smoke_web.py (Chromium capture of the running local app)
+    privacy_redaction: enabled

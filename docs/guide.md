@@ -57,7 +57,7 @@ zones:
     name: Restricted Area
     coordinate_space: normalized
     risk_level: high
-    min_dwell_seconds: 0.5
+    dwell_seconds: 0.5
     required_ppe: [helmet, vest]
     polygon:
       - [0.15, 0.40]

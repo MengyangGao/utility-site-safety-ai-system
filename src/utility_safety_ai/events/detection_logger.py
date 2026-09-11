@@ -11,6 +11,7 @@ from typing import Any
 
 from ..utils.paths import OUTPUT_SCHEMA_VERSION
 from .event import Detection
+from .serialization import csv_cell
 
 DETECTION_FIELDS = [
     "schema_version",
@@ -87,10 +88,4 @@ class DetectionLogger:
             writer = csv.DictWriter(f, fieldnames=DETECTION_FIELDS)
             writer.writerow({name: self._serialize(record.get(name)) for name in DETECTION_FIELDS})
 
-    @staticmethod
-    def _serialize(value: Any) -> str:
-        if value is None:
-            return ""
-        if isinstance(value, (list, dict, tuple)):
-            return json.dumps(value)
-        return str(value)
+    _serialize = staticmethod(csv_cell)

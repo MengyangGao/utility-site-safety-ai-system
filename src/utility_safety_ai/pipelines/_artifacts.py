@@ -6,7 +6,10 @@ import csv
 import hashlib
 import os
 import re
+import shutil
+import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
@@ -20,6 +23,8 @@ from ..compliance.person_ppe_association import associate_ppe_to_persons
 from ..events.detection_logger import DetectionLogger
 from ..events.event import Detection, SafetyEvent
 from ..events.event_logger import EventLogger
+from ..events.store import EventStore
+from ..rules.rule_engine import RuleEvaluation
 from ..utils.paths import OutputPaths
 from ..zones.zone import Zone
 
@@ -52,7 +57,7 @@ def redact_source(
     try:
         parts = urlsplit(value)
     except ValueError:
-        return value
+        return "[invalid source]"
     if not parts.scheme or not parts.netloc:
         path = Path(value)
         return path.name if portable_local and path.is_absolute() else value
@@ -136,7 +141,9 @@ def detector_manifest(detector: Any) -> dict[str, Any]:
     return {
         "detector_class": f"{type(detector).__module__}.{type(detector).__name__}",
         "model_path": display_model_path,
-        "model_origin": "local" if model_file is not None and model_file.is_file() else "hub_or_runtime",
+        "model_origin": "local"
+        if model_file is not None and model_file.is_file()
+        else "hub_or_runtime",
         "model_kind": "ppe" if ppe_classes else "general" if classes else "unknown",
         "model_sha256": model_hash,
         "classes": classes,
@@ -207,6 +214,52 @@ def validate_video_output(path: Path, *, expected_frames: int | None = None) -> 
         probe.release()
 
 
+def finalize_video(path: Path, *, expected_frames: int) -> dict[str, Any]:
+    """Publish browser-playable H.264 when FFmpeg is available, before hashing artifacts."""
+    validate_video_output(path, expected_frames=expected_frames)
+    executable = shutil.which("ffmpeg")
+    if executable is None:
+        return {"codec": "mpeg4", "browser_compatible": False, "reason": "ffmpeg unavailable"}
+    temporary = path.with_name(path.stem + ".h264.mp4")
+    try:
+        result = subprocess.run(
+            [
+                executable,
+                "-nostdin",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-i",
+                str(path.resolve()),
+                "-an",
+                "-c:v",
+                "libx264",
+                "-threads",
+                "2",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "23",
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+                str(temporary.resolve()),
+            ],
+            capture_output=True,
+            timeout=600,
+            check=False,
+        )
+        if result.returncode:
+            raise OSError("FFmpeg could not encode the annotated video as H.264")
+        validate_video_output(temporary, expected_frames=expected_frames)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return {"codec": "h264", "browser_compatible": True, "encoder": "ffmpeg/libx264"}
+
+
 def opencv_display_available() -> bool:
     """Return whether this OpenCV build and host can open a GUI window."""
     if not hasattr(cv2, "imshow"):
@@ -215,9 +268,10 @@ def opencv_display_available() -> bool:
     gui_lines = [line.strip().lower() for line in build_info.splitlines() if "gui:" in line.lower()]
     if any("none" in line for line in gui_lines):
         return False
-    has_host_display = os.name == "nt" or sys.platform == "darwin" or bool(
-        os.environ.get("DISPLAY")
-        or os.environ.get("WAYLAND_DISPLAY")
+    has_host_display = (
+        os.name == "nt"
+        or sys.platform == "darwin"
+        or bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
     )
     return has_host_display
 
@@ -231,6 +285,7 @@ class RunArtifacts:
         *,
         association_min_score: float = 0.28,
         association_ambiguity_margin: float = 0.08,
+        event_sink: Callable[[SafetyEvent], None] | None = None,
     ) -> None:
         self.paths = output_paths
         self.association_min_score = association_min_score
@@ -239,6 +294,9 @@ class RunArtifacts:
         self.detection_logger = DetectionLogger(output_paths.events)
         self._initialize_compliance_files(output_paths.events)
         self.compliance_reporter = ComplianceReporter(output_paths.events)
+        self.event_sink = event_sink or EventStore(output_paths.base_root / "events.sqlite3").append
+        self.lifecycle_path = output_paths.events / "lifecycle.jsonl"
+        self.lifecycle_path.touch(exist_ok=True)
 
     def persist_frame(
         self,
@@ -251,6 +309,7 @@ class RunArtifacts:
         frame_index: int | None = None,
         time_seconds: float | None = None,
         metadata: dict[str, Any] | None = None,
+        evaluation: RuleEvaluation | None = None,
     ) -> list[SafetyEvent]:
         """Save snapshots, events, detections, and changed compliance state."""
         updated_events = [self._with_snapshot(image, event) for event in events]
@@ -263,8 +322,20 @@ class RunArtifacts:
             compliance_records,
             frame_index=frame_index,
             time_seconds=time_seconds,
+            stream_segment=int((metadata or {}).get("stream_segment", 0)),
         )
         self.event_logger.log_all(updated_events)
+        for event in updated_events:
+            self.event_sink(event)
+        if evaluation is not None:
+            transitions = [
+                event
+                for event in evaluation.active_findings
+                if event.metadata.get("lifecycle_state") == "opened"
+                or event.metadata.get("confirmation_count")
+                == event.metadata.get("confirmation_required")
+            ]
+            self.persist_lifecycle([*transitions, *evaluation.resolved_findings])
         self.detection_logger.log_all(
             detections,
             source_type=source_type,
@@ -274,6 +345,14 @@ class RunArtifacts:
             metadata=metadata,
         )
         return updated_events
+
+    def persist_lifecycle(self, events: list[SafetyEvent]) -> None:
+        import json
+
+        if events:
+            with self.lifecycle_path.open("a", encoding="utf-8") as file:
+                for event in events:
+                    file.write(json.dumps(asdict(event), allow_nan=False) + "\n")
 
     def _with_snapshot(self, image: np.ndarray, event: SafetyEvent) -> SafetyEvent:
         crop = image

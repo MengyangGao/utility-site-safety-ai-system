@@ -9,9 +9,7 @@ SUPPORTED_LANGUAGES = {"en", "zh-hans", "zh-hant"}
 DEFAULT_LANGUAGE = "en"
 
 _ENV_KEY = "UTILITY_SAFETY_AI_LANG"
-_ACTIVE_LANGUAGE: ContextVar[str | None] = ContextVar(
-    "utility_safety_ai_language", default=None
-)
+_ACTIVE_LANGUAGE: ContextVar[str | None] = ContextVar("utility_safety_ai_language", default=None)
 
 
 _TRANSLATIONS: dict[str, dict[str, str]] = {

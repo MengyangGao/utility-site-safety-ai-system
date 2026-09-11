@@ -10,6 +10,7 @@ from typing import Any
 
 from ..utils.paths import OUTPUT_SCHEMA_VERSION
 from .event import SafetyEvent
+from .serialization import csv_cell
 
 FIELD_NAMES = [
     "schema_version",
@@ -65,10 +66,4 @@ class EventLogger:
             writer = csv.DictWriter(f, fieldnames=FIELD_NAMES)
             writer.writerow({name: self._serialize(record.get(name)) for name in FIELD_NAMES})
 
-    @staticmethod
-    def _serialize(value: Any) -> str:
-        if value is None:
-            return ""
-        if isinstance(value, (list, dict, tuple)):
-            return json.dumps(value)
-        return str(value)
+    _serialize = staticmethod(csv_cell)

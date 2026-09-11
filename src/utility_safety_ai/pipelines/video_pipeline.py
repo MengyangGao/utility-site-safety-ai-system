@@ -24,9 +24,9 @@ from ._artifacts import (
     RunArtifacts,
     detector_manifest,
     file_source_integrity,
+    finalize_video,
     open_video_writer,
     redact_source,
-    validate_video_output,
     zones_manifest,
 )
 
@@ -39,7 +39,7 @@ def run_video_pipeline(
     detector: YoloDetector,
     zones: list[Zone],
     rule_engine: RuleEngine | None = None,
-    blur_faces_enabled: bool = False,
+    blur_faces_enabled: bool = True,
     max_frames: int | None = None,
     privacy_mode: str = "gaussian",
     progress_callback: Callable[[int, int | None], None] | None = None,
@@ -48,6 +48,7 @@ def run_video_pipeline(
     overwrite: bool = False,
     audit_source: str | None = None,
     monitoring_profile: MonitoringProfile | None = None,
+    event_sink: Callable[[SafetyEvent], None] | None = None,
 ) -> list[SafetyEvent]:
     """Run inference on a video and persist an immutable, auditable run."""
     source_path = Path(source_path)
@@ -120,6 +121,7 @@ def run_video_pipeline(
         )
         artifacts = RunArtifacts(
             output_paths,
+            event_sink=event_sink,
             association_min_score=engine.association_min_score,
             association_ambiguity_margin=engine.association_ambiguity_margin,
         )
@@ -182,6 +184,7 @@ def run_video_pipeline(
                 display_frame,
                 detections,
                 evaluation.new_events,
+                evaluation=evaluation,
                 source_type="video",
                 source_path=safe_source,
                 frame_index=frame_index,
@@ -208,12 +211,18 @@ def run_video_pipeline(
         writer.release()
         writer = None
         cap.release()
-        validate_video_output(out_video_path, expected_frames=frame_index)
+        if expected_total is not None and frame_index < expected_total:
+            raise ValueError(
+                f"Video decoding ended early: processed {frame_index} of {expected_total} expected frames"
+            )
+        video_encoding = finalize_video(out_video_path, expected_frames=frame_index)
         write_summary(all_events, output_paths.events)
+        artifacts.persist_lifecycle(engine.end_stream("run_completed"))
         quality.write(output_paths.root)
         output_paths.complete_manifest(
             metrics={
                 "frames_processed": frame_index,
+                "video_encoding": video_encoding,
                 "detections": total_detections,
                 "events": len(all_events),
             }

@@ -70,9 +70,7 @@ def test_repeated_negative_boxes_are_one_resolved_violation():
     lower_confidence = _det("no_gloves", (5, 80, 35, 130), confidence=0.6)
     higher_confidence = _det("no_gloves", (65, 80, 95, 130), confidence=0.9)
 
-    records, _ = associate_ppe_to_persons(
-        [person, lower_confidence, higher_confidence]
-    )
+    records, _ = associate_ppe_to_persons([person, lower_confidence, higher_confidence])
 
     assert records[0].violations() == ["gloves"]
     assert records[0].negative_detections == [higher_confidence]
@@ -143,3 +141,22 @@ def test_compliance_reporter_writes_csv_and_jsonl(tmp_path):
     assert "helmet" in text
     assert "vest" in text
     assert "conflicting_classes" in text
+
+
+def test_compliance_state_resets_when_tracker_segment_changes(tmp_path):
+    import json
+
+    records, _ = associate_ppe_to_persons([_det("person", (0, 0, 100, 200), track_id=1)])
+    reporter = ComplianceReporter(tmp_path)
+    reporter.write(records, stream_segment=0)
+    reporter.write(records, stream_segment=0)
+    reporter.write(records, stream_segment=1)
+    rows = [json.loads(line) for line in reporter.jsonl_path.read_text().splitlines()]
+    assert [row["stream_segment"] for row in rows] == [0, 1]
+    reporter.write([])
+    assert not reporter._last_state
+
+
+def test_untracked_compliance_records_do_not_crash(tmp_path):
+    records, _ = associate_ppe_to_persons([_det("person", (0, 0, 100, 200))])
+    ComplianceReporter(tmp_path).write(records)

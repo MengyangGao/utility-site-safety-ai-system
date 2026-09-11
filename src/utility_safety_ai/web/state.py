@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,7 @@ def initialize_session() -> None:
     st.session_state.setdefault("web_session_id", new_session_id())
     session_root = WEB_OUTPUT_ROOT / st.session_state.web_session_id
     session_root.mkdir(parents=True, exist_ok=True)
+    os.utime(session_root, None)
     if not st.session_state.get("retention_checked"):
         cleanup_session_outputs(
             WEB_OUTPUT_ROOT,

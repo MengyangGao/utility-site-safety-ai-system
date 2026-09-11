@@ -7,13 +7,12 @@ and run-history shaping deterministic and easy to unit test.
 
 from __future__ import annotations
 
-import hashlib
 import math
 import shutil
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -59,19 +58,6 @@ class NormalizedZone:
     dwell_seconds: float = 0.0
 
 
-@dataclass
-class RunContext:
-    """Session-owned inference state that must survive Streamlit reruns."""
-
-    context_id: str
-    output_root: Path
-    detector: Any
-    engine: Any
-    tracker: Any
-    model_info: dict[str, Any]
-    events: list[Any] = field(default_factory=list)
-
-
 def new_session_id() -> str:
     """Return an opaque identifier suitable for a private Web output root."""
 
@@ -108,12 +94,6 @@ def cleanup_session_outputs(
         else:
             retained += 1
     return removed
-
-
-def utc_run_label() -> str:
-    """Return a compact, sortable UTC label for UI-only records."""
-
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
 
 
 def parse_zone_yaml(
@@ -231,9 +211,7 @@ def zones_from_rows(rows: list[dict[str, Any]]) -> list[NormalizedZone]:
             required_ppe: list[str] = []
         elif isinstance(required_ppe_value, str):
             required_ppe = [
-                value.strip()
-                for value in required_ppe_value.split(",")
-                if value.strip()
+                value.strip() for value in required_ppe_value.split(",") if value.strip()
             ]
         elif isinstance(required_ppe_value, (list, tuple)):
             required_ppe = list(required_ppe_value)
@@ -305,9 +283,7 @@ def zones_to_yaml(zones: list[NormalizedZone]) -> str:
     return yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
 
 
-def zones_to_pixels(
-    zones: list[NormalizedZone], width: int, height: int
-) -> list[Zone]:
+def zones_to_pixels(zones: list[NormalizedZone], width: int, height: int) -> list[Zone]:
     """Scale portable normalized zones to a concrete source resolution."""
 
     if width <= 0 or height <= 0:
@@ -396,29 +372,6 @@ def redact_uri_credentials(source: str) -> str:
     return redact_source(source)
 
 
-def sanitize_run_artifacts(
-    run_dir: str | Path, raw_source: str, redacted_source: str | None = None
-) -> int:
-    """Replace a credential-bearing source string in downloadable text artifacts."""
-
-    run_dir = Path(run_dir)
-    redacted_source = redacted_source or redact_uri_credentials(raw_source)
-    if raw_source == redacted_source or not run_dir.exists():
-        return 0
-    changed = 0
-    for pattern in ("*.json", "*.jsonl", "*.csv"):
-        for path in run_dir.rglob(pattern):
-            try:
-                text = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                continue
-            if raw_source not in text:
-                continue
-            path.write_text(text.replace(raw_source, redacted_source), encoding="utf-8")
-            changed += 1
-    return changed
-
-
 @contextmanager
 def temporary_upload(uploaded_file: Any) -> Iterator[Path]:
     """Persist a Streamlit upload for a pipeline call and always remove it."""
@@ -437,49 +390,6 @@ def temporary_upload(uploaded_file: Any) -> Iterator[Path]:
             path.unlink(missing_ok=True)
 
 
-def sha256_file(path: str | Path) -> str | None:
-    """Return a model artifact hash, or ``None`` for hub names/non-files."""
-
-    path = Path(path)
-    if not path.is_file():
-        return None
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def inspect_detector(detector: Any, requested_model: str) -> dict[str, Any]:
-    """Describe the active detector without relying on a specific YOLO version."""
-
-    model = getattr(detector, "model", None)
-    raw_names = getattr(model, "names", {})
-    if isinstance(raw_names, dict):
-        classes = [str(raw_names[key]).lower() for key in sorted(raw_names)]
-    elif isinstance(raw_names, (list, tuple)):
-        classes = [str(value).lower() for value in raw_names]
-    else:
-        classes = []
-    has_person = "person" in classes
-    ppe_classes = sorted(set(classes) & PPE_CLASS_NAMES)
-    capabilities: list[str] = []
-    if has_person:
-        capabilities.extend(["person_detection", "zone_intrusion"])
-    if ppe_classes:
-        capabilities.extend(["ppe_detection", "ppe_rule_events"])
-    return {
-        # A basename plus the checkpoint hash is enough for the Web audit view
-        # and does not publish a user's home or mounted-volume path.
-        "requested_model": Path(requested_model).name,
-        "device": str(getattr(detector, "device", "unknown")),
-        "sha256": sha256_file(requested_model),
-        "classes": classes,
-        "ppe_classes": ppe_classes,
-        "capabilities": capabilities,
-    }
-
-
 def resolve_run_artifact(run_dir: str | Path, stored_path: str | Path) -> Path:
     """Resolve a portable run-relative artifact path for local presentation."""
 
@@ -495,9 +405,7 @@ def _parse_required_ppe(raw: Any, zone_id: str) -> tuple[str, ...]:
     if not isinstance(raw, list):
         raise ZoneValidationError(f"Zone {zone_id!r} required_ppe must be a list.")
     if any(not isinstance(item, str) for item in raw):
-        raise ZoneValidationError(
-            f"Zone {zone_id!r} required_ppe values must be strings."
-        )
+        raise ZoneValidationError(f"Zone {zone_id!r} required_ppe values must be strings.")
     if any(not item or item.strip() != item for item in raw):
         raise ZoneValidationError(
             f"Zone {zone_id!r} required_ppe values must be non-empty canonical names."
@@ -541,9 +449,7 @@ def _parse_polygon(raw: Any, zone_id: str) -> tuple[tuple[float, float], ...]:
                 f"Zone {zone_id!r} point #{point_index} must be numeric."
             ) from exc
         if not math.isfinite(x) or not math.isfinite(y):
-            raise ZoneValidationError(
-                f"Zone {zone_id!r} point #{point_index} must be finite."
-            )
+            raise ZoneValidationError(f"Zone {zone_id!r} point #{point_index} must be finite.")
         points.append((x, y))
     return tuple(points)
 
@@ -552,9 +458,7 @@ def _looks_normalized(polygon: tuple[tuple[float, float], ...]) -> bool:
     return all(0.0 <= x <= 1.0 and 0.0 <= y <= 1.0 for x, y in polygon)
 
 
-def _validate_normalized_polygon(
-    polygon: tuple[tuple[float, float], ...], zone_id: str
-) -> None:
+def _validate_normalized_polygon(polygon: tuple[tuple[float, float], ...], zone_id: str) -> None:
     if not _looks_normalized(polygon):
         raise ZoneValidationError(
             f"Zone {zone_id!r} normalized coordinates must all be between 0 and 1."

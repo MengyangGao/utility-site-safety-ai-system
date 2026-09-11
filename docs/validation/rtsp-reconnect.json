@@ -1,0 +1,30 @@
+{
+  "scope": "Real loopback RTSP replay. No physical camera, latency benchmark or accuracy claim.",
+  "mode": "interrupted publisher",
+  "detector": "bundled PPE model",
+  "result": "passed",
+  "model_sha256": "b05d39dba9d9a5a19855b9cc7dc4c613e979a64a280929e593522685c19cefff",
+  "metrics": {
+    "capture": {
+      "buffer_policy": "latest_frame_only",
+      "capture_options": {
+        "max_frame_age_seconds": 2.0,
+        "open_timeout_seconds": 5,
+        "read_timeout_seconds": 5,
+        "reconnect_attempts": 6,
+        "reconnect_delay_seconds": 0.2
+      },
+      "frames_dropped": 162,
+      "frames_received": 176,
+      "read_failures": 3,
+      "reconnections": 1,
+      "stale_frames_discarded": 0,
+      "stop_reason": "operator_stop"
+    },
+    "detections": 52,
+    "elapsed_seconds": 13.997268291001092,
+    "events": 2,
+    "frames_processed": 12,
+    "reconnections": 1
+  }
+}

@@ -198,23 +198,16 @@ def associate_ppe_to_persons(
         raise ValueError("ambiguity_margin must be a finite value between 0 and 1")
     persons = [d for d in detections if d.class_name == "person"]
     ppe_dets = [
-        d
-        for d in detections
-        if d.class_name in POSITIVE_PPE or d.class_name in NEGATIVE_PPE
+        d for d in detections if d.class_name in POSITIVE_PPE or d.class_name in NEGATIVE_PPE
     ]
 
     # Index by detection position rather than track ID. Multiple untracked people
     # legitimately have ``track_id=None`` and must not overwrite one another.
     records = [
-        PersonCompliance(person_track_id=person.track_id, bbox=person.bbox)
-        for person in persons
+        PersonCompliance(person_track_id=person.track_id, bbox=person.bbox) for person in persons
     ]
     candidates: list[dict[str, dict[str, list[Detection]]]] = [
-        {
-            ppe_type: {"positive": [], "negative": []}
-            for ppe_type in PPE_TYPES
-        }
-        for _ in persons
+        {ppe_type: {"positive": [], "negative": []} for ppe_type in PPE_TYPES} for _ in persons
     ]
 
     unassociated: list[Detection] = []
@@ -226,9 +219,7 @@ def associate_ppe_to_persons(
             continue
         ranked: list[tuple[float, int]] = []
         for person_index, person in enumerate(persons):
-            ranked.append(
-                (_association_score(ppe.bbox, person.bbox, ppe_type), person_index)
-            )
+            ranked.append((_association_score(ppe.bbox, person.bbox, ppe_type), person_index))
         ranked.sort(reverse=True)
 
         if not ranked or ranked[0][0] < iou_threshold:

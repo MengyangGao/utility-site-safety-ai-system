@@ -5,31 +5,21 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from ..resources import resource_root
 
-def _discover_repo_root() -> Path:
-    override = os.environ.get("UTILITY_SAFETY_REPO_ROOT")
-    if override:
-        return Path(override).expanduser().resolve()
-    current = Path.cwd().resolve()
-    for candidate in (current, *current.parents):
-        if (candidate / "pyproject.toml").is_file() and (
-            candidate / "src" / "utility_safety_ai"
-        ).is_dir():
-            return candidate
-    return current
-
-
-REPO_ROOT = _discover_repo_root()
-WEB_OUTPUT_ROOT = REPO_ROOT / "outputs" / "web_demo" / "sessions"
+REPO_ROOT = resource_root()
+WEB_OUTPUT_ROOT = (
+    Path(os.getenv("UTILITY_SAFETY_OUTPUT_DIR", str(Path.cwd() / "outputs")))
+    / "web_demo"
+    / "sessions"
+)
 DEMO_IMAGE = REPO_ROOT / "examples" / "sample_images" / "construction_site_ppe_01.jpg"
 
 MODEL_PROFILES: dict[str, str] = {}
 if (REPO_ROOT / "models" / "ppe_yolo11n.pt").is_file():
     MODEL_PROFILES["PPE + restricted-zone monitor"] = "models/ppe_yolo11n.pt"
 MODEL_PROFILES["Person + restricted-zone monitor"] = (
-    "models/yolo11n.pt"
-    if (REPO_ROOT / "models" / "yolo11n.pt").is_file()
-    else "yolo11n.pt"
+    "models/yolo11n.pt" if (REPO_ROOT / "models" / "yolo11n.pt").is_file() else "yolo11n.pt"
 )
 
 ZONE_PRESETS: dict[str, tuple[Path | None, Path | None]] = {}

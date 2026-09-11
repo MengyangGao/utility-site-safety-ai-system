@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+import numpy as np
 
 from ..detection.yolo_detector import YoloDetector
 from ..monitoring import MonitoringProfile
@@ -133,6 +136,7 @@ def analyse_camera(
     zones: list[NormalizedZone],
     settings: AnalysisSettings,
     max_frames: int,
+    frame_callback: Callable[[np.ndarray, dict], None] | None = None,
 ) -> AnalysisResult:
     """Capture a bounded camera/RTSP evidence run."""
     run_id = generate_run_id()
@@ -147,6 +151,7 @@ def analyse_camera(
         blur_faces_enabled=settings.blur_faces,
         privacy_mode=settings.privacy_mode,
         max_frames=max_frames,
+        frame_callback=frame_callback,
         run_id=run_id,
         monitoring_profile=settings.profile,
     )

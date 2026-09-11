@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "utility-safety-ai"
-version = "2.1.0"
+version = "2.2.0"
 description = "Computer-vision PPE and restricted-zone monitoring for utility and construction worksites."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
@@ -24,7 +24,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "ultralytics>=8.3.0,<9.0",
+    "torch>=2.4,<3",
+    "torchvision>=0.19,<1",
+    "ultralytics>=8.4.147,<9.0",
     "lap>=0.5.12,<0.6",
     "opencv-python>=4.8.0,<5.0",
     "numpy>=1.26.0,<2.0.0",
@@ -36,8 +38,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+api = ["fastapi>=0.115,<1", "uvicorn>=0.34,<1"]
+mqtt = ["paho-mqtt>=2.1,<3"]
 dev = [
     "build>=1.2.0,<2.0",
+    "httpx>=0.28,<1",
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.34,<1",
+    "paho-mqtt>=2.1,<3",
     "mypy>=1.11.0,<2.0",
     "pytest>=8.0.0,<10.0",
     "pytest-cov>=5.0.0,<8.0",
@@ -67,7 +75,7 @@ select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
 ignore = ["E501"]
 
 [tool.pytest.ini_options]
-testpaths = ["src/tests"]
+testpaths = ["tests"]
 addopts = "-ra --strict-markers"
 
 [tool.coverage.run]
@@ -78,7 +86,7 @@ omit = ["src/utility_safety_ai/tools/*"]
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
-fail_under = 70
+fail_under = 75
 
 [tool.mypy]
 python_version = "3.11"
@@ -88,3 +96,25 @@ ignore_missing_imports = true
 no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
+
+[tool.setuptools.data-files]
+"share/utility-safety-ai/models" = ["models/ppe_yolo11n.pt", "models/yolo11n.pt", "models/registry.json"]
+"share/utility-safety-ai/examples/sample_images" = ["examples/sample_images/*.jpg"]
+"share/utility-safety-ai/examples/sample_videos" = ["examples/sample_videos/*.mp4"]
+"share/utility-safety-ai/examples" = ["examples/*.yaml"]
+
+# CPU reference wheels keep Linux/Windows demo and CI installs free of CUDA runtimes.
+# macOS uses the normal PyPI wheel, including its MPS backend.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux' or sys_platform == 'win32'" }]
+torchvision = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux' or sys_platform == 'win32'" }]
+
+[dependency-groups]
+browser = [
+    "playwright>=1.55,<2",
+]

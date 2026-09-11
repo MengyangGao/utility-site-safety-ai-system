@@ -28,9 +28,7 @@ class _PrivacyDetector:
 
 
 def test_blur_changes_upper_body_pixels():
-    image = np.random.default_rng(1).integers(
-        0, 255, (100, 100, 3), dtype=np.uint8
-    )
+    image = np.random.default_rng(1).integers(0, 255, (100, 100, 3), dtype=np.uint8)
     original = image.copy()
     detections = [
         Detection(
@@ -50,9 +48,7 @@ def test_blur_changes_upper_body_pixels():
 
 
 def test_blur_disabled_returns_original():
-    image = np.random.default_rng(2).integers(
-        0, 255, (50, 50, 3), dtype=np.uint8
-    )
+    image = np.random.default_rng(2).integers(0, 255, (50, 50, 3), dtype=np.uint8)
     original = image.copy()
     detections = [
         Detection(
@@ -87,9 +83,7 @@ def test_invalid_privacy_mode_is_rejected():
 
 
 def test_associated_face_uses_precise_box_without_upper_body_fallback():
-    image = np.random.default_rng(3).integers(
-        0, 255, (100, 100, 3), dtype=np.uint8
-    )
+    image = np.random.default_rng(3).integers(0, 255, (100, 100, 3), dtype=np.uint8)
     original = image.copy()
     detections = [
         Detection(0, "person", 0.95, (10, 10, 90, 90)),
@@ -104,9 +98,7 @@ def test_associated_face_uses_precise_box_without_upper_body_fallback():
 
 
 def test_only_person_without_associated_face_uses_fallback():
-    image = np.random.default_rng(4).integers(
-        0, 255, (100, 120, 3), dtype=np.uint8
-    )
+    image = np.random.default_rng(4).integers(0, 255, (100, 120, 3), dtype=np.uint8)
     original = image.copy()
     detections = [
         Detection(0, "person", 0.95, (5, 10, 50, 90)),
@@ -121,9 +113,7 @@ def test_only_person_without_associated_face_uses_fallback():
 
 
 def test_unassociated_face_and_person_fallback_are_both_blurred():
-    image = np.random.default_rng(5).integers(
-        0, 255, (100, 120, 3), dtype=np.uint8
-    )
+    image = np.random.default_rng(5).integers(0, 255, (100, 120, 3), dtype=np.uint8)
     original = image.copy()
     detections = [
         Detection(0, "person", 0.95, (5, 10, 50, 90)),
@@ -138,9 +128,7 @@ def test_unassociated_face_and_person_fallback_are_both_blurred():
 
 def test_event_snapshot_is_saved_from_privacy_processed_frame(tmp_path):
     source = tmp_path / "privacy-source.png"
-    original = np.random.default_rng(6).integers(
-        0, 255, (100, 100, 3), dtype=np.uint8
-    )
+    original = np.random.default_rng(6).integers(0, 255, (100, 100, 3), dtype=np.uint8)
     assert cv2.imwrite(str(source), original)
     detector = _PrivacyDetector(
         [
@@ -161,13 +149,7 @@ def test_event_snapshot_is_saved_from_privacy_processed_frame(tmp_path):
 
     assert len(events) == 1
     snapshot = cv2.imread(
-        str(
-            tmp_path
-            / "outputs"
-            / "runs"
-            / "privacy-run"
-            / str(events[0].snapshot_path)
-        )
+        str(tmp_path / "outputs" / "runs" / "privacy-run" / str(events[0].snapshot_path))
     )
     assert snapshot is not None
     # Snapshot is the person crop (10:90, 10:90); translate the exact face ROI.

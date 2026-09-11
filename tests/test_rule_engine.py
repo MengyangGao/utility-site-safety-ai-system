@@ -10,12 +10,21 @@ from utility_safety_ai.rules.rule_engine import RuleEngine
 from utility_safety_ai.zones.zone import Zone
 
 ZONES = [
-    Zone(id="zone1", name="High Voltage", risk_level=risk.HIGH, polygon=[(0, 0), (100, 0), (100, 100), (0, 100)]),
+    Zone(
+        id="zone1",
+        name="High Voltage",
+        risk_level=risk.HIGH,
+        polygon=[(0, 0), (100, 0), (100, 100), (0, 100)],
+    ),
 ]
 
 
-def _det(class_name: str, bbox: tuple[float, float, float, float], track_id: int | None = None) -> Detection:
-    return Detection(class_id=0, class_name=class_name, confidence=0.8, bbox=bbox, track_id=track_id)
+def _det(
+    class_name: str, bbox: tuple[float, float, float, float], track_id: int | None = None
+) -> Detection:
+    return Detection(
+        class_id=0, class_name=class_name, confidence=0.8, bbox=bbox, track_id=track_id
+    )
 
 
 def test_missing_helmet_is_medium_risk():
@@ -125,8 +134,12 @@ def test_duplicate_negative_boxes_count_as_one_ppe_type():
 def test_cooldown_suppresses_duplicate_events():
     engine = RuleEngine(zones=ZONES, cooldown_seconds=1.0)
     detections = [_det("person", (10, 10, 30, 30), track_id=1)]
-    first = engine.evaluate(detections, source_type="video", source_path="test.mp4", time_seconds=0.0)
-    second = engine.evaluate(detections, source_type="video", source_path="test.mp4", time_seconds=0.5)
+    first = engine.evaluate(
+        detections, source_type="video", source_path="test.mp4", time_seconds=0.0
+    )
+    second = engine.evaluate(
+        detections, source_type="video", source_path="test.mp4", time_seconds=0.5
+    )
     assert len(first) == 1
     assert len(second) == 0
 
@@ -134,8 +147,12 @@ def test_cooldown_suppresses_duplicate_events():
 def test_cooldown_allows_event_after_window():
     engine = RuleEngine(zones=ZONES, cooldown_seconds=1.0)
     detections = [_det("person", (10, 10, 30, 30), track_id=1)]
-    first = engine.evaluate(detections, source_type="video", source_path="test.mp4", time_seconds=0.0)
-    second = engine.evaluate(detections, source_type="video", source_path="test.mp4", time_seconds=1.5)
+    first = engine.evaluate(
+        detections, source_type="video", source_path="test.mp4", time_seconds=0.0
+    )
+    second = engine.evaluate(
+        detections, source_type="video", source_path="test.mp4", time_seconds=1.5
+    )
     assert len(first) == 1
     assert len(second) == 1
 
@@ -227,15 +244,9 @@ def test_zone_dwell_delays_intrusion_until_threshold():
     engine = RuleEngine(zones=[dwell_zone])
     detections = [_det("person", (10, 10, 30, 30), track_id=1)]
 
-    assert engine.evaluate(
-        detections, "video", "test.mp4", time_seconds=0.0
-    ) == []
-    assert engine.evaluate(
-        detections, "video", "test.mp4", time_seconds=1.9
-    ) == []
-    events = engine.evaluate(
-        detections, "video", "test.mp4", time_seconds=2.0
-    )
+    assert engine.evaluate(detections, "video", "test.mp4", time_seconds=0.0) == []
+    assert engine.evaluate(detections, "video", "test.mp4", time_seconds=1.9) == []
+    events = engine.evaluate(detections, "video", "test.mp4", time_seconds=2.0)
 
     assert len(events) == 1
     assert events[0].metadata["time_in_zone_seconds"] == 2.0
@@ -276,9 +287,7 @@ def test_provisional_false_positive_resets_before_confirmation():
     assert engine.evaluate(detections, "video", "test.mp4", time_seconds=0.0) == []
     cleared = engine.evaluate_frame([], "video", "test.mp4", time_seconds=0.1)
     assert cleared.resolved_findings[0].metadata["confirmation_status"] == "observing"
-    restarted = engine.evaluate_frame(
-        detections, "video", "test.mp4", time_seconds=0.2
-    )
+    restarted = engine.evaluate_frame(detections, "video", "test.mp4", time_seconds=0.2)
     assert restarted.active_findings[0].metadata["confirmation_count"] == 1
 
 
@@ -313,9 +322,7 @@ def test_zone_dwell_resets_after_person_leaves():
 
     engine.evaluate(inside, "video", "test.mp4", time_seconds=0.0)
     engine.evaluate([], "video", "test.mp4", time_seconds=0.5)
-    assert engine.evaluate(
-        inside, "video", "test.mp4", time_seconds=1.1
-    ) == []
+    assert engine.evaluate(inside, "video", "test.mp4", time_seconds=1.1) == []
 
 
 def test_required_ppe_policy_can_disable_non_required_violation():
@@ -354,3 +361,43 @@ def test_non_finite_event_time_is_rejected():
     engine = RuleEngine(zones=[])
     with pytest.raises(ValueError, match="time_seconds"):
         engine.evaluate([], "video", "test.mp4", time_seconds=float("nan"))
+
+
+def test_incident_identity_is_stable_until_observation_ends():
+    engine = RuleEngine(zones=ZONES, cooldown_seconds=0)
+    detections = [_det("person", (10, 10, 30, 30), track_id=1)]
+    first = engine.evaluate_frame(detections, "camera", "test", time_seconds=0)
+    second = engine.evaluate_frame(detections, "camera", "test", time_seconds=1)
+    assert (
+        first.active_findings[0].metadata["incident_id"]
+        == second.active_findings[0].metadata["incident_id"]
+    )
+    ended = engine.end_stream("connection_lost")
+    assert ended[0].metadata["lifecycle_state"] == "interrupted"
+    assert ended[0].metadata["interruption_reason"] == "connection_lost"
+    third = engine.evaluate_frame(detections, "camera", "test", time_seconds=2)
+    assert (
+        third.active_findings[0].metadata["incident_id"]
+        != first.active_findings[0].metadata["incident_id"]
+    )
+
+
+def test_cooldown_memory_expires_during_blank_frames():
+    engine = RuleEngine(zones=ZONES, cooldown_seconds=10)
+    engine.evaluate(
+        [_det("person", (10, 10, 30, 30), track_id=1)], "camera", "test", time_seconds=0
+    )
+    engine.evaluate_frame([], "camera", "test", time_seconds=11)
+    assert not engine._last_emitted
+    assert not engine._recent_spatial_events
+
+
+def test_distinct_untracked_people_are_not_the_same_incident():
+    engine = RuleEngine(zones=ZONES)
+    events = engine.evaluate(
+        [_det("person", (1, 1, 20, 50)), _det("person", (60, 1, 90, 50))],
+        "camera",
+        "test",
+        time_seconds=0,
+    )
+    assert len(events) == 2

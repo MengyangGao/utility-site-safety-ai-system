@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from math import isfinite
 from typing import Any
 
 
@@ -22,10 +23,27 @@ def assess_model_metrics(
         ("recall", min_recall),
         ("map50", min_map50),
     ):
-        actual = float(metrics.get(name, 0.0))
+        if isinstance(minimum, bool) or not isfinite(minimum) or not 0 <= minimum <= 1:
+            raise ValueError(f"{name} threshold must be finite and in [0, 1]")
+        raw = metrics.get(name)
+        if (
+            isinstance(raw, bool)
+            or not isinstance(raw, (int, float))
+            or not isfinite(raw)
+            or not 0 <= raw <= 1
+        ):
+            failures.append(f"{name} must be a finite measured value in [0, 1]")
+            continue
+        actual = float(raw)
         if actual < minimum:
             failures.append(f"{name}={actual:.4f} is below {minimum:.4f}")
 
+    if (
+        isinstance(min_class_recall, bool)
+        or not isfinite(min_class_recall)
+        or not 0 <= min_class_recall <= 1
+    ):
+        raise ValueError("class recall threshold must be finite and in [0, 1]")
     per_class = metrics.get("per_class", {})
     if not isinstance(per_class, dict):
         failures.append("per_class metrics are missing")
@@ -35,7 +53,18 @@ def assess_model_metrics(
         if not isinstance(class_metrics, dict):
             failures.append(f"required class {class_name!r} is missing")
             continue
-        recall = float(class_metrics.get("recall", 0.0))
+        raw = class_metrics.get("recall")
+        if (
+            isinstance(raw, bool)
+            or not isinstance(raw, (int, float))
+            or not isfinite(raw)
+            or not 0 <= raw <= 1
+        ):
+            failures.append(
+                f"class {class_name!r} recall must be a finite measured value in [0, 1]"
+            )
+            continue
+        recall = float(raw)
         if recall < min_class_recall:
             failures.append(
                 f"class {class_name!r} recall={recall:.4f} is below {min_class_recall:.4f}"

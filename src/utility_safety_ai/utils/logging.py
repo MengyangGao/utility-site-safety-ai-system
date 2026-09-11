@@ -7,8 +7,8 @@ import sys
 
 
 def configure_logging(level: int = logging.INFO) -> None:
-    """Configure a simple coloured console logger for the package."""
-    handler = logging.StreamHandler(sys.stdout)
+    """Keep diagnostics on stderr so JSON/CSV stdout remains machine-readable."""
+    handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(
         logging.Formatter(
             fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",

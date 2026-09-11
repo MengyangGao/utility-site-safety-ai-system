@@ -11,6 +11,7 @@ import numpy as np
 
 from ..events.event import Detection
 from .model_loader import resolve_model_path
+from .runtime import load_yolo
 
 logger = logging.getLogger(__name__)
 
@@ -65,26 +66,26 @@ class YoloDetector:
         iou: float = 0.45,
         class_conf: dict[str, float] | None = None,
     ) -> None:
-        from ultralytics import YOLO
-
         self.device = device or _auto_device()
         self.conf = conf
         self.iou = iou
         self.class_conf = dict(DEFAULT_CLASS_CONF if class_conf is None else class_conf)
-        thresholds = [self.conf, *self.class_conf.values()]
+        thresholds = [self.conf, self.iou, *self.class_conf.values()]
         if any(
             isinstance(value, bool)
             or not isinstance(value, (int, float))
             or not 0.0 <= float(value) <= 1.0
             for value in thresholds
         ):
-            raise ValueError("All confidence thresholds must be between 0 and 1")
+            raise ValueError("All confidence and IoU thresholds must be between 0 and 1")
         # The global confidence is a true lower bound for every class. Submit it
         # to Ultralytics, then apply stricter per-class floors below.
         self.inference_conf = float(self.conf)
         resolved = resolve_model_path(model_path)
         logger.info("Loading YOLO model from %s on device %s", resolved, self.device)
-        self.model = YOLO(resolved)
+        self.model = load_yolo(
+            resolved, allow_download=model_path is not None and not Path(resolved).is_file()
+        )
 
     def predict(self, image: np.ndarray | str | Path) -> list[Detection]:
         """Run detection on a single image/frame."""

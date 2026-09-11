@@ -30,9 +30,7 @@ def point_in_polygon(point: tuple[float, float], polygon: list[tuple[float, floa
             return True
 
         # Standard ray-casting crossing test.
-        if ((y1 > y) != (y2 > y)) and (
-            x < (x2 - x1) * (y - y1) / (y2 - y1 + 1e-12) + x1
-        ):
+        if ((y1 > y) != (y2 > y)) and (x < (x2 - x1) * (y - y1) / (y2 - y1 + 1e-12) + x1):
             inside = not inside
 
     return inside

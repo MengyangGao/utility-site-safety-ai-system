@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import json
 from collections import Counter
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -21,22 +22,25 @@ def aggregate_events(events: list[SafetyEvent]) -> dict[str, Any]:
     Returns:
         Dictionary suitable for JSON/CSV serialization.
     """
-    risk_counts = Counter(e.risk_level for e in events)
-    type_counts = Counter(e.event_type for e in events)
-    zone_intrusions = sum(1 for e in events if e.event_type == "zone_intrusion")
-    ppe_violations = sum(
-        1 for e in events if e.event_type.startswith("missing_")
-    )
+    return aggregate_records([asdict(event) for event in events])
+
+
+def aggregate_records(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Use one summary contract for local dataclasses and sanitized integration payloads."""
+    risk_counts = Counter(e["risk_level"] for e in records)
+    type_counts = Counter(e["event_type"] for e in records)
+    zone_intrusions = sum(1 for e in records if e["event_type"] == "zone_intrusion")
+    ppe_violations = sum(1 for e in records if e["event_type"].startswith("missing_"))
     unique_track_ids = {
-        event.person_track_id
-        for event in events
-        if event.person_track_id is not None
+        (event.get("metadata", {}).get("stream_segment", 0), event.get("person_track_id"))
+        for event in records
+        if event.get("person_track_id") is not None
     }
 
-    timestamps = [e.timestamp for e in events if e.timestamp]
+    timestamps = [e["timestamp"] for e in records if e.get("timestamp")]
     return {
         "schema_version": OUTPUT_SCHEMA_VERSION,
-        "total_events": len(events),
+        "total_events": len(records),
         "unique_track_ids": len(unique_track_ids),
         "zone_intrusions": zone_intrusions,
         "ppe_violations": ppe_violations,

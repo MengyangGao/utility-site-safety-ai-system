@@ -2,191 +2,170 @@
 
 # Utility Site Safety AI
 
-**PPE compliance and restricted-zone monitoring for utility and construction worksites.**
+**From camera observations to reviewable safety events.**
 
 [![CI](https://github.com/MengyangGao/utility-site-safety-ai-system/actions/workflows/ci.yml/badge.svg)](https://github.com/MengyangGao/utility-site-safety-ai-system/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/Python-3.10–3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+![Python](https://img.shields.io/badge/Python-3.10–3.12-3776AB)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-663399)](LICENSE)
 
-Turn images, video, cameras, and RTSP streams into live safety findings, privacy-protected evidence,
-and downloadable reports—on a laptop, with a bundled PPE model.
+A local construction and infrastructure monitoring demo with bundled PPE models,
+zone policies, temporary tracking, private evidence and durable integrations.
 
-<img src="docs/assets/safety-monitoring-demo.gif" alt="PPE and restricted-zone video monitoring demo" width="720">
+![Running monitoring dashboard](docs/assets/dashboard-v2.2.png)
 
-<br>
-<a href="docs/assets/safety-monitoring-demo.mp4">▶ Watch the annotated MP4 demo</a>
+[Quick start](#quick-start) · [Operating guide](docs/guide.md) · [Integrations](docs/integrations.md) · [Validation](docs/modernization.md)
 
 </div>
 
-## Web dashboard
+## What it does
 
-![Utility Safety Intelligence dashboard](docs/assets/web-dashboard.jpg)
+- Processes images, video files, webcams and RTSP streams using the existing YOLO detection pipeline.
+- Associates supported PPE observations with people and evaluates normalized polygon zones,
+  dwell times, consecutive-frame confirmation and repeat-alert cooldowns.
+- Keeps live capture bounded: open/read timeouts, TCP by default for RTSP, a latest-frame
+  mailbox, reconnect budgets, stale-frame rejection and explicit continuity segments.
+- Redacts detected faces or estimated head regions before saving evidence. Privacy is enabled
+  by default in both the CLI and dashboard. Model usage analytics are disabled in this process.
+- Records annotated media, snapshots, source/model hashes, events, observation lifecycles,
+  capture timestamps and processing diagnostics.
+- Delivers events during inference through a durable SQLite outbox. Supports signed webhooks,
+  optional MQTT QoS 1, and an authenticated local REST API.
+- Appends operator review history while retaining the original run evidence and manifest.
 
-## Detection examples
-
-<table>
-  <tr>
-    <td width="33%" align="center">
-      <img src="docs/assets/annotated-zone.jpg" alt="General person and restricted-zone result" width="100%"><br>
-      <b>Person + restricted-zone monitoring</b>
-    </td>
-    <td width="33%" align="center">
-      <img src="docs/assets/annotated-ppe-zone.jpg" alt="PPE and restricted-zone alert" width="100%"><br>
-      <b>PPE + restricted-zone alert</b>
-    </td>
-    <td width="33%" align="center">
-      <img src="docs/assets/ppe-detection-result.jpg" alt="PPE detection result" width="100%"><br>
-      <b>Person-level PPE detection</b>
-    </td>
-  </tr>
-</table>
-
-## Video monitoring
-
-<table>
-  <tr>
-    <td width="50%" align="center">
-      <img src="docs/assets/annotated-video-frame.jpg" alt="Tracked PPE video frame" width="100%"><br>
-      <b>Temporary tracking + PPE association</b>
-    </td>
-    <td width="50%" align="center">
-      <img src="docs/assets/annotated-video-frame-2.jpg" alt="Restricted-zone video event" width="100%"><br>
-      <b>Confirmed restricted-zone event</b>
-    </td>
-  </tr>
-</table>
-
-## What you can do
-
-- Detect people, helmets, vests, gloves, boots, goggles, and explicit missing-PPE classes.
-- Draw normalized polygon zones and raise intrusion alerts when a person enters them.
-- Track people temporarily across video frames and suppress repeated alerts.
-- Combine PPE and zone findings into `low`, `medium`, `high`, and `critical` risks.
-- Blur or pixelate privacy-sensitive regions before media is saved.
-- Review results in a bilingual Streamlit dashboard and download a complete report ZIP.
-- Process images, videos, webcams, and RTSP streams from the Web UI or CLI.
-- Save annotated media, snapshots, events, detections, compliance records, and run summaries.
+The project fits inspection workflows around utility corridors, excavation edges, plant exclusion
+zones and other infrastructure worksites. [Example scenarios](docs/scenarios.md) include a Hong Kong
+construction context. The sample policies are illustrative and require camera-specific calibration.
 
 ## Quick start
 
-Python 3.11 is recommended. The bundled models keep the first run fully local.
+Use Python 3.11 and [uv](https://docs.astral.sh/uv/getting-started/installation/).
+Install **FFmpeg** for H.264 browser video playback; image analysis works without it.
 
 ```bash
-conda create -n utility-safety-ai python=3.11 -y
-conda activate utility-safety-ai
-pip install -e .
-utility-safety-ai web
+git clone https://github.com/MengyangGao/utility-site-safety-ai-system.git
+cd utility-site-safety-ai-system
+uv sync --locked
+uv run utility-safety-ai web
 ```
 
-Open the displayed local URL, keep **PPE + restricted-zone monitor** selected, then upload an image
-or video. Privacy blur is enabled by default.
+Open **http://127.0.0.1:8501**, keep the PPE model and privacy blur selected, and choose
+**Run included sample**. Results open automatically. You can also upload an image or video,
+inspect evidence, save review decisions and download the report.
 
-## Run the included samples
+The two small checkpoints and example inputs ship in both the checkout and wheel. A default run
+does not download a model. For pip/Conda environments, `pip install .` is also supported; `uv.lock`
+is the reproducible CPU reference environment on Linux/Windows, with the standard MPS-capable
+PyTorch wheel on macOS. See [development](docs/development.md) for GPU environment choices.
+
+## Try the CLI
 
 ```bash
-# Image: PPE + restricted-zone result
-utility-safety-ai infer-image \
+uv run utility-safety-ai infer-image \
   --source examples/sample_images/construction_site_ppe_01.jpg \
   --zones examples/zones_construction_site_ppe_01.yaml \
-  --output outputs/image-demo \
-  --blur-faces
+  --output outputs/image-demo
 
-# Video: tracking + temporal alert confirmation
-utility-safety-ai infer-video \
+uv run utility-safety-ai infer-video \
   --source examples/sample_videos/construction_ppe_pan.mp4 \
   --zones examples/zones_construction_site_ppe_01.yaml \
-  --output outputs/video-demo \
-  --blur-faces
+  --output outputs/video-demo
+
+# Bounded live capture; use an environment variable for credential-bearing URLs.
+export UTILITY_SAFETY_CAMERA_SOURCE='rtsp://camera/stream'
+uv run utility-safety-ai infer-camera --duration 300 --output outputs/camera-demo
 ```
 
-The default model is `models/ppe_yolo11n.pt`; no model download is required.
+Use `--privacy-mode solid` or `pixelate` for alternative redaction, and `--no-blur-faces`
+only when unredacted output is intentional. `--profile` selects a heuristic operating preset;
+profile names do not represent measured accuracy guarantees.
 
-## Other inputs
+<details>
+<summary>Video playback and review workspace</summary>
+
+![Real annotated H.264 playback in Chromium](docs/assets/video-v2.2.png)
+![Evidence and append-only review controls](docs/assets/review-details-v2.2.png)
+
+</details>
+
+## Pipeline
+
+```text
+Image / file / camera / RTSP
+              ↓
+    bounded capture → latest frame       (live sources)
+              ↓
+     YOLO → temporary person tracking
+              ↓
+     person ↔ PPE association + zone policy
+              ↓
+     temporal confirmation + cooldown
+              ↓
+     privacy processing → evidence + hashed run manifest
+              ↓
+     SQLite event index + delivery outbox
+        ↙             ↓               ↘
+   dashboard       REST API       webhook / MQTT
+```
+
+The detector, association rules, model artifacts and Streamlit application remain the foundation.
+There is no mandatory broker, database server, hosted account or enterprise control plane.
+See [architecture](docs/architecture.md) for contracts and failure behavior.
+
+## Integrations
 
 ```bash
-# Webcam
-utility-safety-ai infer-camera --source 0 --max-frames 300 --blur-faces
+# The receiver is operator configured. Delivery starts as events are recorded.
+export UTILITY_SAFETY_WEBHOOK_URL='https://your-receiver.example/events'
+export UTILITY_SAFETY_WEBHOOK_SECRET='your-shared-signing-secret'
+uv run utility-safety-ai infer-video --source worksite.mp4 --output outputs/edge
 
-# RTSP camera
-utility-safety-ai infer-camera --source "rtsp://camera/stream" --blur-faces
+# Retry queued deliveries after a process restart or connectivity outage.
+uv run utility-safety-ai deliver-pending --output outputs/edge
 
-# General person + zone model
-utility-safety-ai infer-video --source worksite.mp4 --model models/yolo11n.pt
+# Local authenticated API over the same event database.
+export UTILITY_SAFETY_API_TOKEN='a-random-token-at-least-24-characters-long'
+uv run --extra api utility-safety-ai api --output outputs/edge
 ```
 
-## Define a safety zone
+The API exposes cursor-based events, protected snapshot access and review history at
+**http://127.0.0.1:8080/docs**. Webhooks include a timestamp, HMAC signature and stable
+idempotency key. MQTT is optional: `uv sync --locked --extra mqtt`, then configure the broker
+through environment variables. Both send event metadata, without camera URLs or raw media.
+See [integration contracts](docs/integrations.md) for authentication, retries and MQTT settings.
 
-Normalized coordinates work across different input resolutions:
+## Evidence and limitations
 
-```yaml
-zones:
-  - id: high_voltage_area
-    name: High Voltage Area
-    coordinate_space: normalized
-    risk_level: high
-    required_ppe: [helmet, vest]
-    polygon:
-      - [0.15, 0.40]
-      - [0.85, 0.40]
-      - [0.90, 0.95]
-      - [0.10, 0.95]
+Each run has its own directory under `outputs/<name>/runs/<run-id>/`. Only completed runs update
+`latest.json`; failures retain diagnostics. The integration database sits at
+`outputs/<name>/events.sqlite3`. Original run hashes are finalized before operator reviews.
+
+The current PPE model has worn-PPE classes and explicit `no_helmet`, `no_goggle`, `no_gloves`
+and `no_boots` labels. It has **no `no_vest` class**. Absence of a positive detection remains
+`unknown`; it is not treated as proof of missing PPE. Historical model metrics, weak classes,
+training details and hashes are retained in the [model card](docs/model-and-data.md).
+
+Automatic redaction can miss people or identifying details. Review footage before sharing it.
+Tracking IDs represent temporary observations, not verified identities. Reconnection resets
+continuity; a missing observation or stopped camera is not evidence that a hazard is resolved.
+
+The included video is a pan over a licensed still image, not a real monitored construction site.
+Real loopback RTSP interruption/recovery, MQTT delivery, webhook retries, wheel inference and browser
+playback have been tested; physical cameras, new deployment accuracy and unattended field operation
+have not. Read the [validation record](docs/modernization.md) and [security policy](.github/SECURITY.md).
+
+## Development and license
+
+```bash
+uv sync --locked --extra dev
+uv run --extra dev pytest --cov=utility_safety_ai --cov-fail-under=75
+uv run --extra dev ruff check .
+uv run --extra dev ruff format --check .
+uv run --extra dev mypy src/utility_safety_ai
+uv run utility-safety-ai audit-provenance
+uv build
 ```
 
-Use it with `--zones zones.yaml`, or edit zones visually in the Web console.
+[Development and optional integration checks](docs/development.md) · [Model evaluation](docs/model-evaluation/ppe_yolo11n-v1/README.md)
 
-## Results
-
-Every run receives its own folder under `outputs/<name>/runs/<run-id>/`:
-
-```text
-images/ or videos/       annotated result
-snapshots/               alert evidence
-events/events.*          safety events
-events/detections.*      all detections
-events/compliance.*      person-level PPE status
-events/summary.*         report summary
-quality.*                processing indicators
-manifest.json            input, model, settings, and artifact hashes
-```
-
-## Included models
-
-| Model | Size | Best for |
-|---|---:|---|
-| `models/ppe_yolo11n.pt` | 5.2 MB | PPE, people, and restricted zones |
-| `models/yolo11n.pt` | 5.4 MB | People and restricted zones |
-
-The PPE checkpoint was fine-tuned from YOLO11n on the 11-class
-[Ultralytics Construction-PPE dataset](https://docs.ultralytics.com/datasets/detect/construction-ppe/).
-See [models and training](docs/model-and-data.md) for class coverage, evaluation, fine-tuning, and
-export commands.
-
-## How it works
-
-```text
-Image / Video / Camera / RTSP
-              ↓
-         YOLO detection
-              ↓
-      Temporary tracking
-        ↙             ↘
- Person ↔ PPE      Zone geometry
-        ↘             ↙
-        Safety rule engine
-              ↓
- Privacy blur · Evidence · Reports
-```
-
-## Learn more
-
-- [User guide](docs/guide.md)
-- [Models and training](docs/model-and-data.md)
-- [Model evaluation](docs/model-evaluation/ppe_yolo11n-v1/README.md)
-- Run `utility-safety-ai --help` for the complete command reference.
-
-## License
-
-Released under the [GNU Affero General Public License v3.0](LICENSE). The included Ultralytics
-models and Construction-PPE-derived examples use the same open-source license.
-
-> This software assists visual review; confirm every alert before taking action.
+Released under [AGPL-3.0](LICENSE). Bundled models and dataset-derived examples retain their
+recorded licenses and provenance. This software assists visual review; a human must assess alerts.

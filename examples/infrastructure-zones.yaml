@@ -1,0 +1,17 @@
+# Illustrative camera policy for an infrastructure worksite, not a surveyed boundary.
+# Calibrate these normalized polygons for each fixed camera before use.
+zones:
+  - id: excavation_edge
+    name: Excavation edge
+    coordinate_space: normalized
+    risk_level: high
+    required_ppe: [helmet, vest]
+    dwell_seconds: 0.5
+    polygon: [[0.1, 0.45], [0.55, 0.45], [0.65, 0.95], [0.05, 0.95]]
+  - id: plant_exclusion
+    name: Plant exclusion zone
+    coordinate_space: normalized
+    risk_level: critical
+    required_ppe: [helmet, vest]
+    dwell_seconds: 0.0
+    polygon: [[0.65, 0.35], [0.95, 0.35], [0.95, 0.95], [0.7, 0.95]]

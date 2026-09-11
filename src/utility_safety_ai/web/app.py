@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import cv2
@@ -80,9 +81,7 @@ def _sidebar_settings() -> AnalysisSettings:
         model_path = _resolve_model_path(model_value)
 
         device_label = st.selectbox("Processing device", ["CPU", "Auto", "Apple MPS", "CUDA"])
-        device = {"Auto": None, "CPU": "cpu", "Apple MPS": "mps", "CUDA": "cuda:0"}[
-            device_label
-        ]
+        device = {"Auto": None, "CPU": "cpu", "Apple MPS": "mps", "CUDA": "cuda:0"}[device_label]
         with st.expander("Detection tuning"):
             confidence = st.slider(
                 "Detection confidence",
@@ -191,6 +190,7 @@ def _policy_workspace() -> tuple[list, bool]:
 
 def _finish(result: AnalysisResult) -> None:
     record_run(result.run_dir, result.source_label)
+    st.session_state.next_workspace_view = "results"
     if result.event_count:
         st.session_state.run_flash = (
             "warning",
@@ -207,9 +207,7 @@ def _run_action(operation) -> None:
     try:
         with st.spinner("Running detection and preparing results…"):
             _finish(operation())
-        flash = st.session_state.pop("run_flash", None)
-        if flash:
-            getattr(st, flash[0])(flash[1])
+        st.rerun()
     except Exception as exc:
         st.error(f"Analysis failed: {exc}")
 
@@ -268,12 +266,15 @@ def _monitor_workspace(settings: AnalysisSettings, zones: list, zones_valid: boo
         max_frames = None
         if processing == "Quick preview":
             max_frames = st.slider("Preview frame limit", 30, 900, 180, 30)
-        if st.button(
-            _t("run"),
-            type="primary",
-            disabled=upload is None or not zones_valid,
-            width="stretch",
-        ) and upload is not None:
+        if (
+            st.button(
+                _t("run"),
+                type="primary",
+                disabled=upload is None or not zones_valid,
+                width="stretch",
+            )
+            and upload is not None
+        ):
             _run_action(
                 lambda: analyse_file(
                     upload,
@@ -285,15 +286,20 @@ def _monitor_workspace(settings: AnalysisSettings, zones: list, zones_valid: boo
                 )
             )
     else:
-        source_mode = st.radio("Camera input", ["Browser snapshot", "Camera / RTSP stream"], horizontal=True)
+        source_mode = st.radio(
+            "Camera input", ["Browser snapshot", "Camera / RTSP stream"], horizontal=True
+        )
         if source_mode == "Browser snapshot":
             capture = st.camera_input("Capture a privacy-protected inspection frame")
-            if st.button(
-                _t("run"),
-                type="primary",
-                disabled=capture is None or not zones_valid,
-                width="stretch",
-            ) and capture is not None:
+            if (
+                st.button(
+                    _t("run"),
+                    type="primary",
+                    disabled=capture is None or not zones_valid,
+                    width="stretch",
+                )
+                and capture is not None
+            ):
                 _run_action(
                     lambda: analyse_file(
                         capture,
@@ -306,7 +312,22 @@ def _monitor_workspace(settings: AnalysisSettings, zones: list, zones_valid: boo
         else:
             source = st.text_input("Camera index or RTSP URL", value="0", type="password")
             max_frames = st.slider("Capture frame limit", 30, 1800, 300, 30)
-            st.caption("Credentials are redacted from manifests and downloads.")
+            st.caption(
+                "Latest-frame capture with bounded reconnects. Credentials are redacted from saved records."
+            )
+            preview = st.empty()
+            capture_health = st.empty()
+            last_preview = [0.0]
+
+            def show_frame(frame, health):
+                now = time.monotonic()
+                if now - last_preview[0] >= 0.25:
+                    preview.image(frame, channels="BGR", width="stretch")
+                    capture_health.caption(
+                        f"{health['frames']} frames · {health['events']} events · segment {health['stream_segment']} · {health['frames_dropped']} backlog frames dropped"
+                    )
+                    last_preview[0] = now
+
             if st.button(
                 _t("run"),
                 type="primary",
@@ -320,6 +341,7 @@ def _monitor_workspace(settings: AnalysisSettings, zones: list, zones_valid: boo
                         zones=zones,
                         settings=settings,
                         max_frames=max_frames,
+                        frame_callback=show_frame,
                     )
                 )
 
@@ -344,10 +366,16 @@ def main() -> None:
 
     zones, zone_error = _current_zones()
     views = ["monitor", "policy", "results", "history"]
+    next_view = st.session_state.pop("next_workspace_view", None)
+    if next_view:
+        st.session_state.workspace_view = next_view
+    flash = st.session_state.pop("run_flash", None)
+    if flash:
+        getattr(st, flash[0])(flash[1])
     selected_view = st.segmented_control(
         "Workspace",
         views,
-        default="monitor",
+        default="monitor" if "workspace_view" not in st.session_state else None,
         format_func=_t,
         label_visibility="collapsed",
         key="workspace_view",
@@ -369,7 +397,7 @@ def main() -> None:
                 unsafe_allow_html=True,
             )
     else:
-        section(_t("history"), "Private to this browser session · retained for 24 hours")
+        section(_t("history"), "Session-specific history · cleanup runs when new sessions start")
         render_history(st.session_state.run_history)
 
 

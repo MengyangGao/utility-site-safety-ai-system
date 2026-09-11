@@ -35,8 +35,7 @@ PPE_TYPE_RULES: dict[str, tuple[str, str, str]] = {
 
 # Backwards-compatible class-name lookup used by integrations and older configs.
 PPE_RULES: dict[str, tuple[str, str, str]] = {
-    class_name: PPE_TYPE_RULES[ppe_type]
-    for class_name, ppe_type in NEGATIVE_PPE.items()
+    class_name: PPE_TYPE_RULES[ppe_type] for class_name, ppe_type in NEGATIVE_PPE.items()
 }
 
 ZONE_EVENT_TYPE = "zone_intrusion"
@@ -80,16 +79,12 @@ class RuleEngine:
         self.cooldown_seconds = float(cooldown_seconds)
         self.rules_config = dict(rules_config or {})
         self._required_ppe = self._parse_required_ppe(self.rules_config)
-        self.association_min_score = self._bounded_config_float(
-            "association_min_score", 0.28
-        )
+        self.association_min_score = self._bounded_config_float("association_min_score", 0.28)
         self.association_ambiguity_margin = self._bounded_config_float(
             "association_ambiguity_margin", 0.08
         )
         self._validate_risk_overrides()
-        self._last_emitted: dict[
-            tuple[int | None, str, str | None], float
-        ] = {}
+        self._last_emitted: dict[tuple[Hashable, str, str | None], float] = {}
         # A tracker can assign a new ID after a short occlusion. Keep a small
         # spatial event cache so an ID switch cannot bypass the operator's
         # cooldown and flood the event log with the same physical finding.
@@ -107,6 +102,15 @@ class RuleEngine:
         self._zone_entered_at.clear()
         self._stream_key = None
         self._last_time_seconds = None
+
+    def end_stream(self, reason: str) -> list[SafetyEvent]:
+        """Close observations explicitly; a stopped camera is not evidence of safety."""
+        ended = [
+            self._with_metadata(event, lifecycle_state="interrupted", interruption_reason=reason)
+            for event in self._active_findings
+        ]
+        self.reset()
+        return ended
 
     def evaluate(
         self,
@@ -141,14 +145,11 @@ class RuleEngine:
         metadata: dict[str, Any] | None = None,
     ) -> RuleEvaluation:
         """Evaluate one image/frame and expose active plus newly emitted events."""
-        if (
-            time_seconds is not None
-            and (
-                isinstance(time_seconds, bool)
-                or not isinstance(time_seconds, (int, float))
-                or not isfinite(float(time_seconds))
-                or time_seconds < 0
-            )
+        if time_seconds is not None and (
+            isinstance(time_seconds, bool)
+            or not isinstance(time_seconds, (int, float))
+            or not isfinite(float(time_seconds))
+            or time_seconds < 0
         ):
             raise ValueError("time_seconds must be a finite non-negative value")
         self._prepare_stream(source_type, source_path, time_seconds)
@@ -187,9 +188,7 @@ class RuleEngine:
             for zone in mature_zones:
                 required_ppe.update(zone.required_ppe)
             violation_types = [
-                ppe_type
-                for ppe_type in record.violations()
-                if ppe_type in required_ppe
+                ppe_type for ppe_type in record.violations() if ppe_type in required_ppe
             ]
             ppe_events = [
                 self._build_ppe_event(
@@ -233,9 +232,7 @@ class RuleEngine:
             if key in current_zone_keys
         }
 
-        active_findings, resolved_findings = self._apply_lifecycle(
-            active_findings, timestamp
-        )
+        active_findings, resolved_findings = self._apply_lifecycle(active_findings, timestamp)
         confirmed_findings = [
             event
             for event in active_findings
@@ -246,11 +243,7 @@ class RuleEngine:
             for event in active_findings
             if event.metadata.get("confirmation_status") == "observing"
         ]
-        new_events = [
-            event
-            for event in confirmed_findings
-            if self._accept(event, time_seconds)
-        ]
+        new_events = [event for event in confirmed_findings if self._accept(event, time_seconds)]
         return RuleEvaluation(
             active_findings=active_findings,
             confirmed_findings=confirmed_findings,
@@ -281,23 +274,22 @@ class RuleEngine:
             )
             state = "opened"
             confirmation_count = 1
+            incident_id = finding.event_id
             if match_index is not None:
                 previous = unmatched_previous.pop(match_index)
+                incident_id = previous.metadata.get("incident_id", previous.event_id)
                 state = "ongoing"
-                confirmation_count = int(
-                    previous.metadata.get("confirmation_count", 1)
-                ) + 1
+                confirmation_count = int(previous.metadata.get("confirmation_count", 1)) + 1
             confirmation_required = self._confirmation_required(finding)
             active.append(
                 self._with_metadata(
                     finding,
+                    incident_id=incident_id,
                     lifecycle_state=state,
                     confirmation_count=confirmation_count,
                     confirmation_required=confirmation_required,
                     confirmation_status=(
-                        "confirmed"
-                        if confirmation_count >= confirmation_required
-                        else "observing"
+                        "confirmed" if confirmation_count >= confirmation_required else "observing"
                     ),
                 )
             )
@@ -324,9 +316,7 @@ class RuleEngine:
         else:
             raw_value = configured
         if isinstance(raw_value, bool) or not isinstance(raw_value, int) or raw_value < 1:
-            raise ValueError(
-                "rules_config.confirmation_frames values must be positive integers"
-            )
+            raise ValueError("rules_config.confirmation_frames values must be positive integers")
         return raw_value
 
     def _build_ppe_event(
@@ -393,9 +383,7 @@ class RuleEngine:
                 key, time_seconds if time_seconds is not None else 0.0
             )
             dwell_seconds = self._zone_dwell_seconds(zone)
-            elapsed = (
-                None if time_seconds is None else max(0.0, time_seconds - entered_at)
-            )
+            elapsed = None if time_seconds is None else max(0.0, time_seconds - entered_at)
             if elapsed is not None and elapsed < dwell_seconds:
                 continue
 
@@ -410,9 +398,7 @@ class RuleEngine:
                     time_seconds=time_seconds,
                     risk_level=self._risk_for(ZONE_EVENT_TYPE, zone.risk_level),
                     event_type=ZONE_EVENT_TYPE,
-                    description=(
-                        f"{_('zone_intrusion')} #{record.person_track_id}: {zone.name}"
-                    ),
+                    description=(f"{_('zone_intrusion')} #{record.person_track_id}: {zone.name}"),
                     person_track_id=record.person_track_id,
                     bbox=record.bbox,
                     zone_id=zone.id,
@@ -442,13 +428,20 @@ class RuleEngine:
             and self._last_time_seconds is not None
             and time_seconds < self._last_time_seconds
         )
-        if self._stream_key is not None and (
-            stream_key != self._stream_key or time_restarted
-        ):
+        if self._stream_key is not None and (stream_key != self._stream_key or time_restarted):
             self.reset()
         self._stream_key = stream_key
         if time_seconds is not None:
             self._last_time_seconds = time_seconds
+            cutoff = time_seconds - self.cooldown_seconds
+            self._last_emitted = {
+                key: emitted for key, emitted in self._last_emitted.items() if emitted > cutoff
+            }
+            self._recent_spatial_events = [
+                (event, emitted)
+                for event, emitted in self._recent_spatial_events
+                if emitted > cutoff
+            ]
 
     def _risk_for(self, event_type: str, default: str) -> str:
         return self.rules_config.get("risk_levels", {}).get(event_type, default)
@@ -464,9 +457,7 @@ class RuleEngine:
             or not isfinite(float(value))
             or value < 0
         ):
-            raise ValueError(
-                f"Dwell time for zone {zone.id!r} must be finite and non-negative"
-            )
+            raise ValueError(f"Dwell time for zone {zone.id!r} must be finite and non-negative")
         return float(value)
 
     @staticmethod
@@ -548,9 +539,7 @@ class RuleEngine:
 
     def _escalate(self, event: SafetyEvent, new_risk: str) -> SafetyEvent:
         """Return a new event with an escalated risk level."""
-        if risk.RISK_ORDER.get(event.risk_level, -1) >= risk.RISK_ORDER.get(
-            new_risk, -1
-        ):
+        if risk.RISK_ORDER.get(event.risk_level, -1) >= risk.RISK_ORDER.get(new_risk, -1):
             return event
         return SafetyEvent(
             event_id=event.event_id,
@@ -572,7 +561,12 @@ class RuleEngine:
 
     def _accept(self, event: SafetyEvent, time_seconds: float | None) -> bool:
         """Apply cooldown de-duplication to a currently active finding."""
-        key = (event.person_track_id, event.event_type, event.zone_id)
+        identity: Hashable = (
+            event.person_track_id
+            if event.person_track_id is not None
+            else ("untracked", event.bbox)
+        )
+        key = (identity, event.event_type, event.zone_id)
         last = self._last_emitted.get(key)
 
         if time_seconds is None:
@@ -606,7 +600,10 @@ class RuleEngine:
         merging separate workers elsewhere in the frame.
         """
 
-        if previous.person_track_id == current.person_track_id:
+        if (
+            previous.person_track_id is not None
+            and previous.person_track_id == current.person_track_id
+        ):
             return True
         if previous.bbox is None or current.bbox is None:
             return False

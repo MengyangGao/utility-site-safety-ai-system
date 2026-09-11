@@ -32,7 +32,7 @@ class MonitoringQuality:
         self.emitted_events = 0
         self.inference_seconds = 0.0
         self.pipeline_seconds = 0.0
-        self.unique_track_ids: set[int] = set()
+        self.unique_track_ids: set[tuple[int, int]] = set()
         self._started_at = perf_counter()
 
     def observe(
@@ -44,6 +44,7 @@ class MonitoringQuality:
         pipeline_seconds: float = 0.0,
         association_min_score: float = 0.28,
         association_ambiguity_margin: float = 0.08,
+        stream_segment: int = 0,
     ) -> None:
         """Record one processed frame and its rule-engine outcome."""
         self.frames += 1
@@ -53,7 +54,7 @@ class MonitoringQuality:
         tracked = [item for item in persons if item.track_id is not None]
         self.tracked_person_observations += len(tracked)
         self.unique_track_ids.update(
-            item.track_id for item in tracked if item.track_id is not None
+            (stream_segment, item.track_id) for item in tracked if item.track_id is not None
         )
         ppe = [
             item
@@ -127,11 +128,7 @@ class MonitoringQuality:
         json_path = directory / "quality.json"
         csv_path = directory / "quality.csv"
         json_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        flat = {
-            key: value
-            for key, value in summary.items()
-            if not isinstance(value, dict)
-        }
+        flat = {key: value for key, value in summary.items() if not isinstance(value, dict)}
         with csv_path.open("w", encoding="utf-8", newline="") as file:
             writer = csv.DictWriter(file, fieldnames=list(flat))
             writer.writeheader()

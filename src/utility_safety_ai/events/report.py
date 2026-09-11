@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .event_logger import FIELD_NAMES
+from .serialization import csv_cell
 
 logger = logging.getLogger(__name__)
 
@@ -73,12 +74,7 @@ def _write_csv(records: list[dict[str, Any]], path: Path) -> None:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for record in records:
-            writer.writerow(
-                {
-                    key: json.dumps(value) if isinstance(value, (dict, list, tuple)) else value
-                    for key, value in record.items()
-                }
-            )
+            writer.writerow({key: csv_cell(value) for key, value in record.items()})
 
 
 def _write_jsonl(records: list[dict[str, Any]], path: Path) -> None:

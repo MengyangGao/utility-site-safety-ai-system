@@ -29,7 +29,7 @@ class MonitoringProfile:
             "confirmation_frames": {
                 "default": self.ppe_confirmation_frames,
                 "zone_intrusion": self.zone_confirmation_frames,
-            }
+            },
         }
 
     def manifest(self) -> dict[str, object]:

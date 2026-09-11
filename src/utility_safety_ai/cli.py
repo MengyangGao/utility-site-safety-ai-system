@@ -20,10 +20,11 @@ import cv2
 from .detection.model_loader import resolve_model_path
 from .detection.yolo_detector import YoloDetector
 from .events.report import export_report
+from .events.store import EventStore
 from .events.summary import aggregate_events
 from .i18n import SUPPORTED_LANGUAGES, set_language
 from .monitoring.profiles import get_monitoring_profile, monitoring_profile_names
-from .notifications import deliver_webhook
+from .notifications.delivery import DeliveryWorker, EventHub, configured_senders
 from .pipelines.camera_pipeline import run_camera_pipeline
 from .pipelines.image_pipeline import run_image_pipeline
 from .pipelines.video_pipeline import run_video_pipeline
@@ -70,12 +71,6 @@ def _echo_result(events, run_dir: Path, *, prefix: str = "Inference complete") -
     click.echo(f"Run artifacts: {run_dir}")
 
 
-def _deliver_if_configured(events, webhook_url: str | None) -> None:
-    if webhook_url and events:
-        status = _run_checked(lambda: deliver_webhook(events, webhook_url))
-        click.echo(f"Webhook delivered: HTTP {status}")
-
-
 @click.group()
 @click.option("--verbose", is_flag=True, help="Enable debug logging.")
 @click.option(
@@ -102,7 +97,9 @@ def _common_inference_options(function):
             type=click.Path(exists=True, dir_okay=False, readable=True, path_type=Path),
             help="Zone YAML/JSON file. An explicitly supplied path must be valid.",
         ),
-        click.option("--output", default="outputs", type=click.Path(path_type=Path), help="Output root."),
+        click.option(
+            "--output", default="outputs", type=click.Path(path_type=Path), help="Output root."
+        ),
         click.option(
             "--conf",
             default=None,
@@ -123,7 +120,12 @@ def _common_inference_options(function):
             help="Monitoring trade-off preset.",
         ),
         click.option("--device", default=None, help="Inference device (cpu, mps, cuda, etc.)."),
-        click.option("--blur-faces", is_flag=True, help="Blur privacy-sensitive regions."),
+        click.option(
+            "--blur-faces/--no-blur-faces",
+            default=True,
+            show_default=True,
+            help="Redact privacy-sensitive regions before saving media.",
+        ),
         click.option(
             "--privacy-mode",
             type=click.Choice(["gaussian", "pixelate", "solid"]),
@@ -197,21 +199,22 @@ def infer_image(
             cooldown_seconds=cooldown,
             rules_config=selected_profile.rule_config(),
         )
-        return run_image_pipeline(
-            source_path=source,
-            output_root=output,
-            detector=detector,
-            zones=zone_list,
-            rule_engine=engine,
-            blur_faces_enabled=blur_faces,
-            privacy_mode=privacy_mode,
-            run_id=effective_run_id,
-            overwrite=overwrite,
-            monitoring_profile=selected_profile,
-        )
+        with EventHub(output, configured_senders(webhook_url)) as hub:
+            return run_image_pipeline(
+                source_path=source,
+                output_root=output,
+                detector=detector,
+                zones=zone_list,
+                rule_engine=engine,
+                blur_faces_enabled=blur_faces,
+                privacy_mode=privacy_mode,
+                run_id=effective_run_id,
+                overwrite=overwrite,
+                monitoring_profile=selected_profile,
+                event_sink=hub.publish,
+            )
 
     _, events = _run_checked(operation)
-    _deliver_if_configured(events, webhook_url)
     _echo_result(events, output / "runs" / effective_run_id)
 
 
@@ -223,7 +226,9 @@ def infer_image(
     help="Input video path.",
 )
 @_common_inference_options
-@click.option("--max-frames", default=None, type=click.IntRange(min=1), help="Optional frame limit.")
+@click.option(
+    "--max-frames", default=None, type=click.IntRange(min=1), help="Optional frame limit."
+)
 def infer_video(
     source: Path,
     model: str | None,
@@ -258,22 +263,23 @@ def infer_video(
             cooldown_seconds=cooldown,
             rules_config=selected_profile.rule_config(),
         )
-        return run_video_pipeline(
-            source_path=source,
-            output_root=output,
-            detector=detector,
-            zones=zone_list,
-            rule_engine=engine,
-            blur_faces_enabled=blur_faces,
-            privacy_mode=privacy_mode,
-            max_frames=max_frames,
-            run_id=effective_run_id,
-            overwrite=overwrite,
-            monitoring_profile=selected_profile,
-        )
+        with EventHub(output, configured_senders(webhook_url)) as hub:
+            return run_video_pipeline(
+                source_path=source,
+                output_root=output,
+                detector=detector,
+                zones=zone_list,
+                rule_engine=engine,
+                blur_faces_enabled=blur_faces,
+                privacy_mode=privacy_mode,
+                max_frames=max_frames,
+                run_id=effective_run_id,
+                overwrite=overwrite,
+                monitoring_profile=selected_profile,
+                event_sink=hub.publish,
+            )
 
     events = _run_checked(operation)
-    _deliver_if_configured(events, webhook_url)
     _echo_result(events, output / "runs" / effective_run_id)
 
 
@@ -284,7 +290,9 @@ def infer_video(
 @click.option("--imgsz", default=640, type=click.IntRange(min=32), show_default=True)
 @click.option("--batch", default=16, type=click.IntRange(min=1), show_default=True)
 @click.option("--device", default=None, help="Training device.")
-@click.option("--project", default="runs/train", show_default=True, help="Training project directory.")
+@click.option(
+    "--project", default="runs/train", show_default=True, help="Training project directory."
+)
 @click.option("--name", default="ppe", show_default=True, help="Training run name.")
 @click.option(
     "--resume",
@@ -324,15 +332,24 @@ def train(
 
 
 @main.command("infer-camera")
-@click.option("--source", default="0", show_default=True, help="Camera index, RTSP URL, or device path.")
+@click.option(
+    "--source",
+    default="0",
+    envvar="UTILITY_SAFETY_CAMERA_SOURCE",
+    show_default=True,
+    help="Camera index, RTSP URL, or device path; supports UTILITY_SAFETY_CAMERA_SOURCE.",
+)
 @_common_inference_options
 @click.option(
     "--duration",
-    default=None,
+    default=300.0,
+    show_default=True,
     type=click.FloatRange(min=0.0, min_open=True),
     help="Optional monotonic runtime limit in seconds.",
 )
-@click.option("--max-frames", default=None, type=click.IntRange(min=1), help="Optional frame limit.")
+@click.option(
+    "--max-frames", default=None, type=click.IntRange(min=1), help="Optional frame limit."
+)
 @click.option(
     "--display",
     is_flag=True,
@@ -374,29 +391,32 @@ def infer_camera(
             cooldown_seconds=cooldown,
             rules_config=selected_profile.rule_config(),
         )
-        return run_camera_pipeline(
-            source=source,
-            output_root=output,
-            detector=detector,
-            zones=zone_list,
-            rule_engine=engine,
-            blur_faces_enabled=blur_faces,
-            privacy_mode=privacy_mode,
-            duration_seconds=duration,
-            max_frames=max_frames,
-            display=display,
-            run_id=effective_run_id,
-            overwrite=overwrite,
-            monitoring_profile=selected_profile,
-        )
+        with EventHub(output, configured_senders(webhook_url)) as hub:
+            return run_camera_pipeline(
+                source=source,
+                output_root=output,
+                detector=detector,
+                zones=zone_list,
+                rule_engine=engine,
+                blur_faces_enabled=blur_faces,
+                privacy_mode=privacy_mode,
+                duration_seconds=duration,
+                max_frames=max_frames,
+                display=display,
+                run_id=effective_run_id,
+                overwrite=overwrite,
+                monitoring_profile=selected_profile,
+                event_sink=hub.publish,
+            )
 
     events = _run_checked(operation)
-    _deliver_if_configured(events, webhook_url)
     _echo_result(events, output / "runs" / effective_run_id, prefix="Camera inference complete")
 
 
 @main.command("doctor")
-@click.option("--model", default=None, help="Optional model path/name to validate without loading it.")
+@click.option(
+    "--model", default=None, help="Optional model path/name to validate without loading it."
+)
 def doctor(model: str | None) -> None:
     """Report environment, acceleration, model and video-codec readiness."""
 
@@ -413,9 +433,7 @@ def doctor(model: str | None) -> None:
         "opencv": cv2.__version__,
         "torch": torch.__version__,
         "cuda_available": torch.cuda.is_available(),
-        "mps_available": bool(
-            hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
-        ),
+        "mps_available": bool(hasattr(torch.backends, "mps") and torch.backends.mps.is_available()),
         "model": str(resolved),
         "model_state": model_state,
         "privacy_face_cascade": bool(getattr(cv2, "data", None)),
@@ -488,7 +506,16 @@ def audit_provenance_cmd(manifest: Path, repo_root: Path) -> None:
 def web() -> None:
     """Launch the Streamlit monitoring console."""
     app_path = Path(__file__).resolve().parent / "web" / "app.py"
-    command = [sys.executable, "-m", "streamlit", "run", str(app_path)]
+    command = [
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        str(app_path),
+        "--server.address=127.0.0.1",
+        "--browser.gatherUsageStats=false",
+        "--theme.base=dark",
+    ]
     try:
         subprocess.run(command, check=True)
     except subprocess.CalledProcessError as exc:
@@ -502,8 +529,15 @@ def web() -> None:
     type=click.Path(exists=True, dir_okay=False, readable=True, path_type=Path),
     help="Events JSONL file.",
 )
-@click.option("--output", required=True, type=click.Path(path_type=Path), help="Output report path or directory.")
-@click.option("--format", "fmt", default="csv", type=click.Choice(["csv", "jsonl"]), show_default=True)
+@click.option(
+    "--output",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Output report path or directory.",
+)
+@click.option(
+    "--format", "fmt", default="csv", type=click.Choice(["csv", "jsonl"]), show_default=True
+)
 def export_report_cmd(events: Path, output: Path, fmt: str) -> None:
     """Export an events JSONL file to CSV or JSONL."""
     path = _run_checked(lambda: export_report(events, output, fmt=fmt))
@@ -511,35 +545,41 @@ def export_report_cmd(events: Path, output: Path, fmt: str) -> None:
 
 
 @main.command("fetch-model")
-@click.option("--model", default="yolo11n.pt", show_default=True, help="Ultralytics model asset name.")
+@click.option(
+    "--model", default="yolo11n.pt", show_default=True, help="Ultralytics model asset name."
+)
 @click.option("--output", default="models", type=click.Path(path_type=Path), show_default=True)
 @click.option("--force", is_flag=True, help="Replace an existing destination model.")
 def fetch_model(model: str, output: Path, force: bool) -> None:
     """Download and pin a small Ultralytics model with a SHA-256 record."""
 
     def operation() -> tuple[Path, str]:
-        from ultralytics import YOLO
-        from ultralytics import __version__ as ultralytics_version
+        from importlib.metadata import version
+
+        from .detection.runtime import load_yolo
+
+        ultralytics_version = version("ultralytics")
 
         output.mkdir(parents=True, exist_ok=True)
         requested = Path(model)
         destination = output / requested.name
         source_existed_before = requested.is_file()
         requested_is_destination = (
-            source_existed_before
-            and requested.resolve() == destination.resolve()
+            source_existed_before and requested.resolve() == destination.resolve()
         )
         if destination.exists() and not requested_is_destination and not force:
             raise FileExistsError(
                 f"Model already exists: {destination}. Use --force to replace it."
             )
 
-        loaded = YOLO(model)
+        loaded = load_yolo(model, allow_download=True)
         source = Path(str(getattr(loaded, "ckpt_path", model)))
         if not source.is_file():
             source = Path(model)
         if not source.is_file():
-            raise FileNotFoundError(f"Ultralytics loaded the model but its checkpoint was not found: {model}")
+            raise FileNotFoundError(
+                f"Ultralytics loaded the model but its checkpoint was not found: {model}"
+            )
         if source.resolve() != destination.resolve():
             auto_downloaded_in_cwd = (
                 not source_existed_before
@@ -592,27 +632,56 @@ def fetch_model(model: str, output: Path, force: bool) -> None:
 )
 @click.option("--imgsz", default=640, type=click.IntRange(min=32), show_default=True)
 @click.option("--device", default=None, help="Export device.")
-@click.option("--output", default="outputs/export", type=click.Path(path_type=Path), show_default=True)
+@click.option(
+    "--output", default="outputs/export", type=click.Path(path_type=Path), show_default=True
+)
 def export_model(model: str, fmt: str, imgsz: int, device: str | None, output: Path) -> None:
     """Export a YOLO checkpoint to a deployment format."""
 
     def operation() -> Path:
-        from ultralytics import YOLO
+        from .tools.export_model import export
 
-        kwargs = {"format": fmt, "imgsz": imgsz}
-        if device is not None:
-            kwargs["device"] = device
-        exported = Path(str(YOLO(model).export(**kwargs)))
-        if not exported.is_file():
-            raise OSError(f"Model export did not produce a file: {exported}")
-        output.mkdir(parents=True, exist_ok=True)
-        destination = output / exported.name
-        if exported.resolve() != destination.resolve():
-            shutil.copy2(exported, destination)
-        return destination
+        return export(model, fmt, imgsz, output, device=device)
 
     destination = _run_checked(operation)
     click.echo(f"Model exported to {destination}")
+
+
+@main.command("api")
+@click.option("--output", default="outputs", type=click.Path(path_type=Path), show_default=True)
+@click.option("--port", default=8080, type=click.IntRange(1, 65535), show_default=True)
+def api_command(output: Path, port: int) -> None:
+    """Serve authenticated local events, evidence and review endpoints (install .[api])."""
+
+    def operation():
+        import uvicorn
+
+        from .api import create_app
+
+        uvicorn.run(create_app(output), host="127.0.0.1", port=port)
+
+    _run_checked(operation)
+
+
+@main.command("deliver-pending")
+@click.option("--output", default="outputs", type=click.Path(path_type=Path), show_default=True)
+@click.option("--retry-failed", is_flag=True, help="Explicitly requeue dead-letter deliveries.")
+def deliver_pending(output: Path, retry_failed: bool) -> None:
+    """Retry due outbox entries using currently configured webhook/MQTT endpoints."""
+
+    def operation():
+        store = EventStore(output / "events.sqlite3")
+        senders = configured_senders()
+        if not senders:
+            raise ValueError("Configure a webhook or MQTT endpoint before retrying deliveries.")
+        if retry_failed:
+            store.retry_failed()
+        worker = DeliveryWorker(store, senders)
+        while worker.run_once():
+            pass
+        return store.delivery_summary()
+
+    click.echo(json.dumps(_run_checked(operation), indent=2))
 
 
 if __name__ == "__main__":

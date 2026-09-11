@@ -19,12 +19,14 @@ class ComplianceReporter:
         self.csv_path = self.output_dir / "compliance.csv"
         self._csv_header_written = self.csv_path.exists() and self.csv_path.stat().st_size > 0
         self._last_state: dict[int, dict[str, str]] = {}
+        self._segment = 0
 
     def write(
         self,
         records: list[PersonCompliance],
         frame_index: int | None = None,
         time_seconds: float | None = None,
+        stream_segment: int = 0,
     ) -> tuple[Path, Path]:
         """Append compliance records to JSONL and CSV.
 
@@ -39,7 +41,17 @@ class ComplianceReporter:
         Returns:
             Paths to the written JSONL and CSV files.
         """
-        rows = [self._to_row(r, frame_index, time_seconds) for r in records]
+        if stream_segment != self._segment:
+            self._last_state.clear()
+            self._segment = stream_segment
+        active_ids = {record.person_track_id for record in records}
+        self._last_state = {
+            key: value for key, value in self._last_state.items() if key in active_ids
+        }
+        rows = [
+            {**self._to_row(r, frame_index, time_seconds), "stream_segment": stream_segment}
+            for r in records
+        ]
         changed_rows = [row for row in rows if self._record_changed(row)]
         if not changed_rows:
             return self.jsonl_path, self.csv_path
@@ -60,6 +72,8 @@ class ComplianceReporter:
 
     def _record_changed(self, row: dict[str, str]) -> bool:
         """Return True if the PPE state for this person differs from the last write."""
+        if row["person_track_id"] is None:
+            return True
         track_id = int(row["person_track_id"])
         state = {
             "helmet": row.get("helmet", "unknown"),
@@ -98,15 +112,14 @@ class ComplianceReporter:
             "violations": ";".join(record.violations()),
             "positive_classes": ",".join(d.class_name for d in record.positive_detections),
             "negative_classes": ",".join(d.class_name for d in record.negative_detections),
-            "conflicting_classes": ",".join(
-                d.class_name for d in record.conflicting_detections
-            ),
+            "conflicting_classes": ",".join(d.class_name for d in record.conflicting_detections),
         }
 
     @staticmethod
     def _fieldnames() -> list[str]:
         return [
             "person_track_id",
+            "stream_segment",
             "frame_index",
             "time_seconds",
             "bbox",

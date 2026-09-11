@@ -45,9 +45,7 @@ def blur_faces(
         return image
 
     faces = [detection for detection in detections if detection.class_name == "face"]
-    people = [
-        detection for detection in detections if detection.class_name == "person"
-    ]
+    people = [detection for detection in detections if detection.class_name == "person"]
     people_with_faces: set[int] = set()
 
     for face in faces:

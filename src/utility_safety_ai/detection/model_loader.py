@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from ..resources import resource_root
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "yolo11n.pt"
@@ -17,7 +19,7 @@ DEFAULT_MODEL_LOCAL_CANDIDATES = ["models/yolo11n.pt"]
 
 def _candidate_locations(candidate: str) -> tuple[Path, ...]:
     """Return deterministic locations for repository-owned model weights."""
-    project_root = Path(__file__).resolve().parents[3]
+    project_root = resource_root()
     cwd_path = Path.cwd() / candidate
     project_path = project_root / candidate
     return (cwd_path,) if cwd_path == project_path else (cwd_path, project_path)
@@ -41,9 +43,7 @@ def resolve_model_path(model_path: str | Path | None) -> str | Path:
         for candidate in PPE_MODEL_CANDIDATES:
             for location in _candidate_locations(candidate):
                 if location.is_file():
-                    logger.info(
-                        "No model specified; using discovered PPE model %s", location
-                    )
+                    logger.info("No model specified; using discovered PPE model %s", location)
                     return location
         for candidate in DEFAULT_MODEL_LOCAL_CANDIDATES:
             for location in _candidate_locations(candidate):

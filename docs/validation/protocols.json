@@ -1,0 +1,10 @@
+{
+  "result": "passed",
+  "scope": "Real loopback HTTP and MQTT; synthetic event, no external endpoint or physical camera.",
+  "webhook_requests": 2,
+  "webhook_retry_after_503": true,
+  "hmac_verified": true,
+  "stable_idempotency_key": true,
+  "mqtt_qos": 1,
+  "mqtt_subscriber_received": true
+}

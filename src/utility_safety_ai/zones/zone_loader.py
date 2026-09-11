@@ -49,9 +49,7 @@ def load_zones(path: str | Path | None) -> list[Zone]:
         raise ValueError("Zone configuration root must be a mapping")
     unknown_root_fields = set(data) - _ROOT_FIELDS
     if unknown_root_fields:
-        raise ValueError(
-            f"Unknown zone configuration fields: {sorted(unknown_root_fields)}"
-        )
+        raise ValueError(f"Unknown zone configuration fields: {sorted(unknown_root_fields)}")
     raw_zones = data.get("zones", [])
     if not isinstance(raw_zones, list):
         raise ValueError("Zone configuration 'zones' must be a list")

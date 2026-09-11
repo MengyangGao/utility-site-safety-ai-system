@@ -35,9 +35,7 @@ def test_quality_summary_and_artifacts_are_explicit(tmp_path):
         _det("helmet", (30, 5, 70, 45)),
         _det("no_vest", (200, 200, 250, 260)),
     ]
-    evaluation = engine.evaluate_frame(
-        detections, "video", "clip.mp4", time_seconds=0.0
-    )
+    evaluation = engine.evaluate_frame(detections, "video", "clip.mp4", time_seconds=0.0)
     quality.observe(detections, evaluation, inference_seconds=0.02, pipeline_seconds=0.04)
 
     summary = quality.summary()

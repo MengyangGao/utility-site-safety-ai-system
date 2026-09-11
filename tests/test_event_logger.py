@@ -81,3 +81,20 @@ def test_event_logger_propagates_required_write_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(logger, "_append_csv", fail)
     with pytest.raises(OSError, match="disk full"):
         logger.log(_event())
+
+
+def test_csv_formula_text_is_escaped_while_json_keeps_original_evidence(tmp_path):
+    from dataclasses import replace
+
+    event = replace(
+        _event(),
+        source_path="=malicious_filename.jpg",
+        description="@dangerous spreadsheet formula",
+    )
+    EventLogger(tmp_path).log(event)
+    record = json.loads((tmp_path / "events.jsonl").read_text())
+    assert record["source_path"] == event.source_path
+    with (tmp_path / "events.csv").open() as handle:
+        row = next(csv.DictReader(handle))
+    assert row["source_path"].startswith("'=")
+    assert row["description"].startswith("'@")

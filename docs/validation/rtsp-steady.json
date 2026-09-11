@@ -1,0 +1,30 @@
+{
+  "scope": "Real loopback RTSP replay. No physical camera, latency benchmark or accuracy claim.",
+  "mode": "steady",
+  "detector": "transport probe",
+  "result": "passed",
+  "model_sha256": null,
+  "metrics": {
+    "capture": {
+      "buffer_policy": "latest_frame_only",
+      "capture_options": {
+        "max_frame_age_seconds": 2.0,
+        "open_timeout_seconds": 5,
+        "read_timeout_seconds": 5,
+        "reconnect_attempts": 6,
+        "reconnect_delay_seconds": 0.2
+      },
+      "frames_dropped": 35,
+      "frames_received": 66,
+      "read_failures": 0,
+      "reconnections": 0,
+      "stale_frames_discarded": 0,
+      "stop_reason": "operator_stop"
+    },
+    "detections": 0,
+    "elapsed_seconds": 5.262439084006473,
+    "events": 0,
+    "frames_processed": 30,
+    "reconnections": 0
+  }
+}

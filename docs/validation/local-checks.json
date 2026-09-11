@@ -1,0 +1,32 @@
+{
+  "date": "2026-09-11",
+  "baseline": "b2f2922",
+  "platform": "macOS arm64",
+  "pytest": {
+    "3.11": {
+      "passed": 188
+    },
+    "3.10": {
+      "passed": 188
+    },
+    "3.12": {
+      "passed": 188
+    }
+  },
+  "coverage_percent": 81.27,
+  "ruff": "passed",
+  "mypy": "passed",
+  "actionlint": "passed",
+  "provenance_artifacts": 28,
+  "browser": "real model image/video + ZIP hashes + Chromium H.264 playback passed",
+  "installed_wheel": "real CPU inference with bundled assets outside checkout passed",
+  "runtime_privacy": {
+    "usage_events_enabled": false,
+    "online_probe": false,
+    "persistent_settings_unchanged": true
+  },
+  "known_dependency_advisories": 0,
+  "dependency_audit_scope": "87 installed dependencies audited; local unpublished package excluded; not a code security guarantee",
+  "remote_actions": "not run for local modifications",
+  "physical_camera": "not tested"
+}

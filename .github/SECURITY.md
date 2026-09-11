@@ -18,3 +18,19 @@ worksite footage, credentials, private model weights, or personal data.
 - Protect `outputs/`, camera URLs, tokens, and report downloads.
 - Load only trusted model files; PyTorch `.pt` files can contain executable code.
 - Update Python, PyTorch, Ultralytics, Streamlit, and OpenCV regularly.
+
+## Local runtime and integrations
+
+The model loader disables Ultralytics usage events in memory and defaults local inference to
+`YOLO_OFFLINE=1` before importing the runtime. It does not rewrite global Ultralytics settings.
+Explicit model/dataset download commands may enable network access when the operator has not
+set an offline override. Streamlit usage statistics are disabled by the CLI and repository config.
+
+Webhooks and MQTT are operator-configured outbound integrations. Their allowlisted event payloads
+exclude source URLs, snapshot paths and raw media. The REST API requires a bearer token and binds
+to loopback. Review labels are caller-supplied, not independently authenticated identities.
+
+Automatic face/head redaction is best effort and may miss people or other identifying details.
+Run databases and evidence are unencrypted local files. Session cleanup runs when sessions start;
+it is not a timer-driven secure-erasure guarantee. Native camera backend debug logs are outside
+the Python log redaction layer; avoid enabling verbose codec logging on credential-bearing streams.

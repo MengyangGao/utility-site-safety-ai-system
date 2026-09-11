@@ -12,11 +12,9 @@ from utility_safety_ai.web_helpers import (
     ZoneValidationError,
     cleanup_session_outputs,
     draw_zone_preview,
-    inspect_detector,
     parse_zone_yaml,
     redact_uri_credentials,
     resolve_run_artifact,
-    sanitize_run_artifacts,
     temporary_upload,
     zones_from_rows,
     zones_to_domain,
@@ -219,32 +217,6 @@ def test_redact_uri_credentials(source: str, expected: str):
     assert redact_uri_credentials(source) == expected
 
 
-def test_sanitize_run_artifacts_replaces_secrets_in_errors_and_manifests(tmp_path):
-    raw = (
-        "rtsp://worker:hunter2@camera.local/live?api_key=abc123&camera=west"
-        "#private-fragment"
-    )
-    redacted = redact_uri_credentials(raw)
-    events = tmp_path / "events"
-    events.mkdir()
-    jsonl = events / "errors.jsonl"
-    manifest = tmp_path / "web_run_manifest.json"
-    binary = tmp_path / "snapshot.jpg"
-    jsonl.write_text(f'{{"error": "Could not open {raw}"}}\n', encoding="utf-8")
-    manifest.write_text(f'{{"source": "{raw}"}}\n', encoding="utf-8")
-    binary.write_bytes(b"not an image, but no text secret")
-
-    assert sanitize_run_artifacts(tmp_path, raw) == 2
-    sanitized_text = jsonl.read_text(encoding="utf-8") + manifest.read_text(
-        encoding="utf-8"
-    )
-    assert raw not in sanitized_text
-    assert sanitized_text.count(redacted) == 2
-    for secret in ("worker", "hunter2", "abc123", "private-fragment"):
-        assert secret not in sanitized_text
-    assert binary.read_bytes() == b"not an image, but no text secret"
-
-
 class _FakeUpload:
     name = "camera.jpg"
 
@@ -261,32 +233,6 @@ def test_temporary_upload_is_removed_even_when_consumer_fails():
         raise RuntimeError("boom")
     assert captured is not None
     assert not captured.exists()
-
-
-class _FakeModel:
-    names = {0: "person", 1: "helmet", 2: "no_helmet"}
-
-
-class _FakeDetector:
-    model = _FakeModel()
-    device = "cpu"
-
-
-def test_inspect_detector_reports_hash_classes_and_capabilities(tmp_path):
-    model_path = tmp_path / "ppe.pt"
-    model_path.write_bytes(b"fake-model")
-    info = inspect_detector(_FakeDetector(), str(model_path))
-
-    assert len(info["sha256"]) == 64
-    assert info["requested_model"] == "ppe.pt"
-    assert info["classes"] == ["person", "helmet", "no_helmet"]
-    assert info["ppe_classes"] == ["helmet", "no_helmet"]
-    assert set(info["capabilities"]) == {
-        "person_detection",
-        "zone_intrusion",
-        "ppe_detection",
-        "ppe_rule_events",
-    }
 
 
 def test_run_relative_artifact_is_resolved_without_persisting_host_path(tmp_path):

@@ -86,9 +86,7 @@ class _TextRenderer:
         if _needs_pil(text):
             font = _load_pil_font(_pil_font_size(font_scale))
             if font is not None:
-                self._pil_operations.append(
-                    _PILTextOperation(text, x, y, color, font)
-                )
+                self._pil_operations.append(_PILTextOperation(text, x, y, color, font))
                 return
         cv2.putText(
             image,

@@ -48,12 +48,8 @@ def test_motion_prediction_keeps_id_after_brief_miss():
 
 def test_global_matching_keeps_neighbouring_tracks_distinct():
     tracker = SimpleTracker(iou_threshold=0.15)
-    first = tracker.update(
-        [_person((0, 0, 30, 60)), _person((40, 0, 70, 60))]
-    )
-    moved = tracker.update(
-        [_person((7, 0, 37, 60)), _person((33, 0, 63, 60))]
-    )
+    first = tracker.update([_person((0, 0, 30, 60)), _person((40, 0, 70, 60))])
+    moved = tracker.update([_person((7, 0, 37, 60)), _person((33, 0, 63, 60))])
 
     assert [item.track_id for item in first] == [1, 2]
     assert [item.track_id for item in moved] == [1, 2]

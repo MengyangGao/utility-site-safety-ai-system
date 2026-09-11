@@ -10,10 +10,29 @@ import logging
 import platform
 import shutil
 from datetime import datetime, timezone
+from math import isfinite
 from pathlib import Path
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def class_metrics(metrics) -> dict:
+    """Map metric-array rows using evaluated class IDs, including absent-class evidence."""
+    rows = {int(class_id): index for index, class_id in enumerate(metrics.box.ap_class_index)}
+    result = {}
+    for class_id, name in metrics.names.items():
+        row = rows.get(int(class_id))
+        values = {}
+        for field, array in (
+            ("precision", metrics.box.p),
+            ("recall", metrics.box.r),
+            ("map50", metrics.box.ap50),
+            ("map50_95", metrics.box.ap),
+        ):
+            value = float(array[row]) if row is not None else None
+            values[field] = round(value, 4) if value is not None and isfinite(value) else None
+        result[name] = {"evaluated": row is not None, **values}
+    return result
 
 
 def validate(
@@ -34,9 +53,13 @@ def validate(
         output_dir: Directory where validation artifacts are saved.
         data: Ultralytics dataset YAML or dataset name.
     """
+    from importlib.metadata import version
+
     import torch
-    from ultralytics import YOLO
-    from ultralytics import __version__ as ultralytics_version
+
+    from ..detection.runtime import load_yolo
+
+    ultralytics_version = version("ultralytics")
 
     model_path = Path(model_path)
     if not model_path.exists():
@@ -45,7 +68,7 @@ def validate(
             "Train a model first or place weights at models/ppe_yolo11n.pt"
         )
 
-    model = YOLO(str(model_path))
+    model = load_yolo(str(model_path), allow_download=True)
     save_json = importlib.util.find_spec("pycocotools") is not None
     if not save_json:
         logger.info(
@@ -61,15 +84,7 @@ def validate(
     )
 
     # Build a serialisable per-class report.
-    names = {int(k): v for k, v in metrics.names.items()}
-    per_class = {}
-    for i, class_name in names.items():
-        per_class[class_name] = {
-            "precision": round(float(metrics.box.p[i]), 4),
-            "recall": round(float(metrics.box.r[i]), 4),
-            "map50": round(float(metrics.box.ap50[i]), 4),
-            "map50_95": round(float(metrics.box.ap[i]), 4),
-        }
+    per_class = class_metrics(metrics)
 
     report = {
         "schema_version": "1.0",
@@ -94,9 +109,7 @@ def validate(
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "metrics.json").write_text(
-        json.dumps(report, indent=2), encoding="utf-8"
-    )
+    (output_dir / "metrics.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
 
     # Copy Ultralytics validation plots and prediction images.
     val_dir = Path(metrics.save_dir)
@@ -148,7 +161,9 @@ def validate(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Validate a PPE YOLO model.")
     parser.add_argument("--model", default="models/ppe_yolo11n.pt", help="Path to model weights.")
-    parser.add_argument("--output", default="outputs/validation", help="Directory for validation artifacts.")
+    parser.add_argument(
+        "--output", default="outputs/validation", help="Directory for validation artifacts."
+    )
     parser.add_argument(
         "--data",
         default="construction-ppe.yaml",

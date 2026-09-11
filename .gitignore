@@ -71,3 +71,7 @@ models/*.ncnn
 
 # Logs
 *.log
+
+# Temporary loopback media-server TLS artifacts
+/auto.crt
+/auto.key

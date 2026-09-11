@@ -32,7 +32,9 @@ def test_export_report(tmp_path):
     output_dir = tmp_path / "reports"
 
     runner = CliRunner()
-    result = runner.invoke(main, ["export-report", "--events", str(events_file), "--output", str(output_dir)])
+    result = runner.invoke(
+        main, ["export-report", "--events", str(events_file), "--output", str(output_dir)]
+    )
     assert result.exit_code == 0
     assert (output_dir / "events.csv").exists()
 
@@ -50,7 +52,7 @@ def test_cli_exposes_user_commands_without_internal_quality_tools():
 
 
 def test_provenance_audit_command_passes_for_repository():
-    repo_root = Path(__file__).resolve().parents[2]
+    repo_root = Path(__file__).resolve().parents[1]
     runner = CliRunner()
     result = runner.invoke(
         main,
@@ -125,6 +127,7 @@ def test_cli_reports_malformed_zone_config_before_loading_model(tmp_path):
 
 
 def test_fetch_model_moves_new_runtime_download_into_models(monkeypatch):
+    monkeypatch.setattr("utility_safety_ai.detection.runtime._disable_usage_events", lambda: None)
     fake_ultralytics = ModuleType("ultralytics")
     fake_ultralytics.__version__ = "test"
 
@@ -150,6 +153,7 @@ def test_fetch_model_moves_new_runtime_download_into_models(monkeypatch):
 
 
 def test_fetch_model_force_preserves_old_checkpoint_when_copy_fails(monkeypatch):
+    monkeypatch.setattr("utility_safety_ai.detection.runtime._disable_usage_events", lambda: None)
     fake_ultralytics = ModuleType("ultralytics")
     fake_ultralytics.__version__ = "test"
 
@@ -186,3 +190,25 @@ def test_fetch_model_force_preserves_old_checkpoint_when_copy_fails(monkeypatch)
 
         assert result.exit_code == 1
         assert destination.read_bytes() == b"old-checkpoint"
+
+
+def test_export_model_supports_directory_artifacts(tmp_path, monkeypatch):
+    import ultralytics
+
+    from utility_safety_ai.tools.export_model import export
+
+    source = tmp_path / "model_openvino_model"
+    source.mkdir()
+    (source / "model.xml").write_text("<model/>")
+
+    class FakeModel:
+        def __init__(self, _):
+            pass
+
+        def export(self, **kwargs):
+            return str(source)
+
+    monkeypatch.setattr(ultralytics, "YOLO", FakeModel)
+    output = export("model.pt", "openvino", output_dir=tmp_path / "export")
+    assert (output / "model.xml").is_file()
+    assert (source / "model.xml").is_file()

@@ -6,8 +6,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from ultralytics import YOLO
-
+from ..detection.runtime import load_yolo
 from ..detection.yolo_detector import _auto_device
 
 logger = logging.getLogger(__name__)
@@ -50,8 +49,10 @@ def train(
             "--resume requires --model to point to an existing interrupted-run checkpoint"
         )
 
-    logger.info("Starting YOLO training: model=%s data=%s epochs=%s device=%s", model, data, epochs, device)
-    yolo = YOLO(model)
+    logger.info(
+        "Starting YOLO training: model=%s data=%s epochs=%s device=%s", model, data, epochs, device
+    )
+    yolo = load_yolo(model, allow_download=True)
     if kwargs.get("resume"):
         checkpoint = getattr(yolo, "ckpt", None)
         resumable = (

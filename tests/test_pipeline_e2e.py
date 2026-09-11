@@ -144,9 +144,7 @@ def test_image_pipeline_creates_complete_run_without_overwriting_history(tmp_pat
     manifest = _assert_audit_contract(first_run)
     assert manifest["source"]["value"] == "worker-upload.jpg"
     assert manifest["source"]["size_bytes"] == source.stat().st_size
-    assert manifest["source"]["source_sha256"] == hashlib.sha256(
-        source.read_bytes()
-    ).hexdigest()
+    assert manifest["source"]["source_sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
     assert manifest["model"]["model_kind"] == "ppe"
     assert manifest["model"]["capabilities"] == [
         "person_detection",
@@ -198,9 +196,7 @@ def test_video_pipeline_processes_synthetic_video_and_persists_all_detections(tm
     assert manifest["metrics"]["frames_processed"] == 3
     assert manifest["metrics"]["detections"] == 6
     assert manifest["source"]["value"] == source.name
-    assert manifest["source"]["source_sha256"] == hashlib.sha256(
-        source.read_bytes()
-    ).hexdigest()
+    assert manifest["source"]["source_sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
     assert (run_dir / "videos" / "input_annotated.mp4").stat().st_size > 0
     detection_lines = (run_dir / "events" / "detections.jsonl").read_text().splitlines()
     assert len(detection_lines) == 6
@@ -221,9 +217,7 @@ def test_video_pipeline_without_limit_processes_complete_video(tmp_path):
         progress_callback=lambda processed, total: progress.append((processed, total)),
     )
 
-    manifest = _assert_audit_contract(
-        tmp_path / "outputs" / "runs" / "complete-video"
-    )
+    manifest = _assert_audit_contract(tmp_path / "outputs" / "runs" / "complete-video")
     assert manifest["config"]["max_frames"] is None
     assert manifest["metrics"]["frames_processed"] == 7
     assert progress[-1] == (7, 7)
@@ -253,9 +247,7 @@ def test_camera_pipeline_uses_monotonic_elapsed_time_and_checked_output(tmp_path
     assert manifest["source"]["value"] == "camera-7"
     assert manifest["source"]["source_sha256"] is None
     assert manifest["source"]["size_bytes"] is None
-    assert "no stable whole-input file" in manifest["source"][
-        "integrity_unavailable_reason"
-    ]
+    assert "no stable whole-input file" in manifest["source"]["integrity_unavailable_reason"]
     assert manifest["metrics"]["frames_processed"] == 2
     assert (run_dir / "videos" / "camera_annotated.mp4").stat().st_size > 0
     rows = [
@@ -283,9 +275,7 @@ def test_invalid_input_creates_no_output_and_failed_run_does_not_replace_latest(
         run_image_pipeline(source, output, FailingDetector(), zones=[], run_id="failed")
 
     assert resolve_latest_run(output) == (output / "runs" / "good").resolve()
-    failed_manifest = json.loads(
-        (output / "runs" / "failed" / "manifest.json").read_text()
-    )
+    failed_manifest = json.loads((output / "runs" / "failed" / "manifest.json").read_text())
     assert failed_manifest["status"] == "failed"
     assert failed_manifest["error"]["type"] == "RuntimeError"
 
@@ -402,3 +392,76 @@ def test_source_redaction_removes_rtsp_credentials_and_tokens():
     assert "worker" not in redacted
     assert "password" not in redacted
     assert "abc" not in redacted
+
+
+def test_video_early_decode_failure_is_not_published_as_complete(tmp_path, monkeypatch):
+    source = tmp_path / "truncated.avi"
+    _write_video(source, frames=3)
+    real_capture = cv2.VideoCapture
+
+    class Truncated:
+        def __init__(self, *args):
+            self.inner = real_capture(*args)
+
+        def get(self, prop):
+            return 30 if prop == cv2.CAP_PROP_FRAME_COUNT else self.inner.get(prop)
+
+        def isOpened(self):
+            return self.inner.isOpened()
+
+        def read(self):
+            return self.inner.read()
+
+        def release(self):
+            return self.inner.release()
+
+    monkeypatch.setattr(cv2, "VideoCapture", Truncated)
+    with pytest.raises(ValueError, match="ended early"):
+        run_video_pipeline(source, tmp_path / "out", FakeDetector([]), zones=[], run_id="truncated")
+    manifest = json.loads((tmp_path / "out/runs/truncated/manifest.json").read_text())
+    assert manifest["status"] == "failed"
+    assert not (tmp_path / "out/latest.json").exists()
+
+
+def test_camera_run_persists_timing_lifecycle_and_frame_limit(tmp_path):
+    source = tmp_path / "camera.avi"
+    _write_video(source)
+    run_camera_pipeline(
+        str(source), tmp_path / "out", FakeDetector(), zones=[], max_frames=2, run_id="timing"
+    )
+    root = tmp_path / "out/runs/timing"
+    manifest = json.loads((root / "manifest.json").read_text())
+    assert manifest["metrics"]["capture"]["stop_reason"] == "frame_limit"
+    assert len((root / "events/frame_timestamps.jsonl").read_text().splitlines()) == 2
+    lifecycle = [
+        json.loads(line) for line in (root / "events/lifecycle.jsonl").read_text().splitlines()
+    ]
+    assert lifecycle[-1]["metadata"]["lifecycle_state"] == "interrupted"
+    assert lifecycle[0]["metadata"]["incident_id"] == lifecycle[-1]["metadata"]["incident_id"]
+
+
+def test_missing_ffmpeg_is_an_explicit_browser_compatibility_state(tmp_path, monkeypatch):
+    from utility_safety_ai.pipelines import _artifacts
+
+    source = tmp_path / "clip.avi"
+    _write_video(source)
+    monkeypatch.setattr(_artifacts.shutil, "which", lambda _: None)
+    result = _artifacts.finalize_video(source, expected_frames=3)
+    assert result["browser_compatible"] is False
+    assert source.is_file()
+
+
+def test_failed_h264_conversion_preserves_original_video(tmp_path, monkeypatch):
+    from utility_safety_ai.pipelines import _artifacts
+
+    source = tmp_path / "clip.avi"
+    _write_video(source)
+    before = source.read_bytes()
+    monkeypatch.setattr(_artifacts.shutil, "which", lambda _: "/test/ffmpeg")
+    monkeypatch.setattr(
+        _artifacts.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(returncode=1)
+    )
+    with pytest.raises(OSError, match="H.264"):
+        _artifacts.finalize_video(source, expected_frames=3)
+    assert source.read_bytes() == before
+    assert not source.with_name("clip.h264.mp4").exists()

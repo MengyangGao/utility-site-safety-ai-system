@@ -10,6 +10,8 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from ..events.event import SafetyEvent
+from ..events.store import EventStore
 from .theme import section
 
 
@@ -32,8 +34,16 @@ def _bundle_run(run_dir: Path) -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(run_dir.rglob("*")):
-            if path.is_file():
+            if (
+                path.is_file()
+                and not path.is_symlink()
+                and path.resolve().is_relative_to(run_dir.resolve())
+            ):
                 archive.write(path, path.relative_to(run_dir))
+        store = EventStore(run_dir.parent.parent / "events.sqlite3")
+        archive.writestr(
+            "review_history.json", json.dumps(store.run_reviews(run_dir.name), indent=2)
+        )
     return buffer.getvalue()
 
 
@@ -41,7 +51,15 @@ def _display_primary_artifact(run_dir: Path) -> None:
     videos = sorted((run_dir / "videos").glob("*.mp4"))
     images = sorted((run_dir / "images").glob("*"))
     if videos:
-        st.video(str(videos[0]))
+        encoding = (
+            _read_json(run_dir / "manifest.json").get("metrics", {}).get("video_encoding", {})
+        )
+        if encoding.get("browser_compatible") is False:
+            st.warning(
+                "Install FFmpeg and rerun to create browser-playable video. This MPEG-4 recording remains available in the report ZIP for desktop players."
+            )
+        else:
+            st.video(str(videos[0]))
     elif images:
         st.image(str(images[0]), width="stretch")
 
@@ -60,9 +78,9 @@ def _quality_panel(run_dir: Path, quality_title: str) -> None:
     st.markdown(
         f"""
         <div class="usi-quality">
-          <div><strong>{_percent(quality.get('tracked_person_rate'))}</strong><small>Tracked person coverage</small></div>
-          <div><strong>{_percent(quality.get('ppe_assignment_rate'))}</strong><small>Reliable PPE assignment</small></div>
-          <div><strong>{quality.get('effective_fps', '—')}</strong><small>Effective frames / second</small></div>
+          <div><strong>{_percent(quality.get("tracked_person_rate"))}</strong><small>Tracked person coverage</small></div>
+          <div><strong>{_percent(quality.get("ppe_assignment_rate"))}</strong><small>PPE association coverage</small></div>
+          <div><strong>{quality.get("effective_fps", "—")}</strong><small>Effective frames / second</small></div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -92,15 +110,30 @@ def _review_workspace(run_dir: Path, events: pd.DataFrame, evidence_title: str) 
     review = events[visible].copy()
     review["review_status"] = "unreviewed"
     review["operator_note"] = ""
-    saved_path = run_dir / "operator_reviews.csv"
-    saved = _read_csv(saved_path)
+    store = EventStore(run_dir.parent.parent / "events.sqlite3")
+    # Import older runs into the integration index without rewriting their evidence.
+    log_path = run_dir / "events" / "events.jsonl"
+    if log_path.is_file():
+        for line in log_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            record.pop("schema_version", None)
+            record.setdefault("metadata", {}).setdefault("run_id", run_dir.name)
+            store.append(SafetyEvent(**record))
+    history = store.run_reviews(run_dir.name)
+    saved = pd.DataFrame(history).rename(
+        columns={"status": "review_status", "note": "operator_note"}
+    )
+    if not saved.empty:
+        saved = saved.drop_duplicates("event_id", keep="last")
+    else:
+        saved = _read_csv(run_dir / "operator_reviews.csv")
     if not saved.empty and "event_id" in saved and "event_id" in review:
         saved_by_id = saved.set_index("event_id")
         for column in ("review_status", "operator_note"):
             if column in saved_by_id:
-                review[column] = review["event_id"].map(saved_by_id[column]).fillna(
-                    review[column]
-                )
+                review[column] = review["event_id"].map(saved_by_id[column]).fillna(review[column])
     edited = st.data_editor(
         review,
         hide_index=True,
@@ -116,9 +149,24 @@ def _review_workspace(run_dir: Path, events: pd.DataFrame, evidence_title: str) 
         },
         key=f"review_{run_dir.name}",
     )
-    if st.button("Save review decisions", key=f"save_review_{run_dir.name}"):
-        edited.to_csv(saved_path, index=False)
-        st.success("Review decisions saved with this run.")
+    reviewer = st.text_input(
+        "Reviewer label", value="Local reviewer", key=f"reviewer_{run_dir.name}", max_chars=100
+    )
+    if st.button(
+        "Save review decisions", key=f"save_review_{run_dir.name}", disabled=not reviewer.strip()
+    ):
+        for index, row in edited.fillna("").iterrows():
+            if (
+                row["review_status"] != review.loc[index, "review_status"]
+                or row["operator_note"] != review.loc[index, "operator_note"]
+            ):
+                store.review(
+                    str(row["event_id"]),
+                    str(row["review_status"]),
+                    str(row["operator_note"]),
+                    reviewer,
+                )
+        st.success("Review history appended. Original evidence remains unchanged.")
 
     snapshots = sorted((run_dir / "snapshots").glob("*.jpg"))
     if snapshots:
@@ -173,6 +221,18 @@ def render_run(run_dir: Path, *, quality_title: str, evidence_title: str) -> Non
             width="stretch",
         )
 
+    capture = metrics.get("capture")
+    if capture:
+        with st.expander("Stream continuity and capture health", expanded=True):
+            health_cols = st.columns(3)
+            health_cols[0].metric("Reconnections", capture.get("reconnections", 0))
+            health_cols[1].metric("Dropped backlog frames", capture.get("frames_dropped", 0))
+            health_cols[2].metric(
+                "Stale frames discarded", capture.get("stale_frames_discarded", 0)
+            )
+            st.caption(
+                f"Stop reason: {capture.get('stop_reason', 'unknown')}. MP4 timing may be compressed; use the timestamp log for capture timing."
+            )
     _quality_panel(run_dir, quality_title)
     _review_workspace(run_dir, events, evidence_title)
     with st.expander("Run settings and file hashes"):
@@ -200,3 +260,14 @@ def render_history(history: list[dict[str, str]]) -> None:
             }
         )
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    selected = st.selectbox(
+        "Open a previous run",
+        range(len(history)),
+        format_func=lambda index: (
+            f"{history[index]['source']} · {Path(history[index]['path']).name}"
+        ),
+    )
+    if st.button("Open selected run"):
+        st.session_state.selected_run = history[selected]["path"]
+        st.session_state.next_workspace_view = "results"
+        st.rerun()

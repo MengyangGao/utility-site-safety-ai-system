@@ -180,9 +180,7 @@ def resolve_latest_run(
             return None
         manifest = _read_manifest(candidate / "manifest.json")
         if manifest.get("status") != "completed":
-            raise ValueError(
-                f"Latest-run pointer does not reference a completed run: {candidate}"
-            )
+            raise ValueError(f"Latest-run pointer does not reference a completed run: {candidate}")
         if manifest.get("run_id") != pointer_run_id or candidate.name != pointer_run_id:
             raise ValueError(f"Latest-run pointer and manifest disagree: {pointer_path}")
         return candidate
@@ -319,9 +317,7 @@ class OutputPaths:
         if self._transactional_overwrite:
             timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
             diagnostic_root = (
-                self.base_root
-                / "failed-runs"
-                / f"{self.run_id}-{timestamp}-{uuid.uuid4().hex[:8]}"
+                self.base_root / "failed-runs" / f"{self.run_id}-{timestamp}-{uuid.uuid4().hex[:8]}"
             )
         self._manifest.update(
             status="failed",
@@ -354,11 +350,7 @@ class OutputPaths:
     def _publish_overwrite(self) -> None:
         """Swap a completed staged run into place, rolling back on any failure."""
         staging_root = self.root
-        backup_root = (
-            self.base_root
-            / ".transactions"
-            / f"{self.run_id}-{uuid.uuid4().hex}.backup"
-        )
+        backup_root = self.base_root / ".transactions" / f"{self.run_id}-{uuid.uuid4().hex}.backup"
         latest_path = self.base_root / "latest.json"
         previous_latest = latest_path.read_bytes() if latest_path.is_file() else None
         old_moved = False
@@ -403,9 +395,7 @@ class OutputPaths:
             "schema_version": OUTPUT_SCHEMA_VERSION,
             "run_id": self.run_id,
             "run_dir": str(self.final_root.relative_to(self.base_root)),
-            "manifest": str(
-                (self.final_root / "manifest.json").relative_to(self.base_root)
-            ),
+            "manifest": str((self.final_root / "manifest.json").relative_to(self.base_root)),
             "updated_at": _utc_now(),
         }
 
