@@ -27,7 +27,14 @@
   },
   "known_dependency_advisories": 0,
   "dependency_audit_scope": "87 installed dependencies audited; local unpublished package excluded; not a code security guarantee",
-  "remote_actions": "not run for local modifications",
+  "remote_actions": {
+    "revision": "ca01bec903a2bd2abcb0e3af7809384177fa074d",
+    "url": "https://github.com/MengyangGao/utility-site-safety-ai-system/actions/runs/34633162803",
+    "conclusion": "success",
+    "jobs": 10,
+    "matrix": "Python 3.10/3.11/3.12 \u00d7 Windows/macOS/Linux; 190 tests per combination",
+    "quality": "lint, formatting, types, provenance, wheel and real-model browser workflow passed"
+  },
   "physical_camera": "not tested",
   "rear_view_update": {
     "date": "2026-09-12",

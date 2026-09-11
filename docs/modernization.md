@@ -53,7 +53,7 @@ Additional checks used actual runtimes:
 
 Tests and tools use synthetic fixtures or provenance-tracked repository examples. No physical
 camera, external alert receiver, paid service, new accuracy benchmark or field deployment was
-used. GitHub Actions has not run against these local changes because no push was performed.
+used. These checks were first performed locally; subsequent remote validation is recorded below.
 
 ## Remaining boundaries
 
@@ -84,5 +84,5 @@ with 0, 0 and 1 events under their example policies. Those counts are functional
 not accuracy results. The browser smoke checks clear samples, ordinary upload redaction, a real
 zone event, report hashes, H.264 playback and mobile layout.
 
-Updates are being pushed to `main` with the owner's authorization. The [CI matrix](https://github.com/MengyangGao/utility-site-safety-ai-system/actions/workflows/ci.yml)
-records remote platform results. No release, deployment or physical-camera operation was performed.
+Updates were pushed to `main` with the owner's authorization. [The complete CI matrix](https://github.com/MengyangGao/utility-site-safety-ai-system/actions/runs/34633162803)
+passed at `ca01bec`: all nine OS/Python test jobs and the quality/browser/wheel job. A later documentation-only commit records these results without changing application source. No release, deployment or physical-camera operation was performed.
