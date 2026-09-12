@@ -15,3 +15,14 @@ The people and organizations pictured do not endorse this project. Demonstration
 Each exact source file was reviewed on 2026-09-12: all visible workers face away from the camera, with no visible recognizable face. `examples/demo_scenes.yaml` pins each image hash. Only the matching, explicitly selected sample can use the “Keep rear-view sample clear” option. Uploaded images, videos and cameras still use their own privacy controls. The privacy reason and actual redaction state are saved in the run manifest.
 
 Source URLs, hashes and original license references are recorded in [provenance.yaml](provenance.yaml). The blank patch on the utility worker's helmet was present in the photographer-provided original; it was not added or removed here. Screenshot compositions include AGPL application UI and the separately licensed photographs.
+
+## Hong Kong construction gallery
+
+Two additional photographs are credited to [Catgirlmutant](https://unsplash.com/@catgirlmutant) and retain the [Unsplash License](https://unsplash.com/license), recorded as `LicenseRef-Unsplash`. They are application examples, not a competing image library, and are not relicensed AGPL.
+
+- `hk_site_access_01.jpg`: [Hong Kong building site](https://unsplash.com/photos/a-man-wearing-a-hard-hat-BRQQtnsG2do).
+- `hk_tsuen_wan_scaffolding_01.jpg`: [Tsuen Wan, Hong Kong](https://unsplash.com/photos/a-man-on-a-scaffold-working-on-a-building-PW-jyG50hpc).
+
+These locations come from the original photographer pages. The README gallery uses publicly licensed photographs with redaction explicitly disabled; that does not claim that no faces are visible. The normal upload/live defaults and the exact-hash rear-view sample exception are unchanged. The original city for the Pexels piling photo has not been verified; Chinese site signage alone is not treated as geolocation evidence.
+
+`tools/render_readme_gallery.py` runs the actual bundled detector, copies its annotations, and records source/model/output hashes. It does not draw invented detections or retouch the scene.

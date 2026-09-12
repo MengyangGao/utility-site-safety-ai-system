@@ -1,0 +1,60 @@
+{
+  "scope": "Real photo/model outputs, not ground-truth accuracy or verified violations.",
+  "confidence": 0.25,
+  "device": "cpu",
+  "scenes": [
+    {
+      "image": "docs/assets/hk_site_access_01_detections.jpg",
+      "location": "Hong Kong building site",
+      "source_sha256": "7b542349111687a5d52bacbf731893da917fce02a76cf69dc3d09ab74a681206",
+      "image_sha256": "54c624b4d9ce78d3c11776cb1fc68a2a8e88f69c1d70cf5c16b75b36c1eab928",
+      "model_sha256": "b05d39dba9d9a5a19855b9cc7dc4c613e979a64a280929e593522685c19cefff",
+      "metrics": {
+        "detections": 11,
+        "events": 0,
+        "frames_processed": 1
+      },
+      "privacy_blur_enabled": false,
+      "run": "outputs/readme-gallery/runs/20260912T095603.994130Z-058793fb"
+    },
+    {
+      "image": "docs/assets/hk_tsuen_wan_scaffolding_01_detections.jpg",
+      "location": "Tsuen Wan, Hong Kong",
+      "source_sha256": "d8eeb7ba9fa7feee060d4ce9ee9381aee3f96ac5eef95f14186c21462603a68d",
+      "image_sha256": "0f426ee0ccb8dd4f6861ff710d46cc8485847b963adbe591a2c5fde0fc667f08",
+      "model_sha256": "b05d39dba9d9a5a19855b9cc7dc4c613e979a64a280929e593522685c19cefff",
+      "metrics": {
+        "detections": 6,
+        "events": 0,
+        "frames_processed": 1
+      },
+      "privacy_blur_enabled": false,
+      "run": "outputs/readme-gallery/runs/20260912T095604.713387Z-f35d65c5"
+    },
+    {
+      "image": "docs/assets/piling_rear_view_01_detections.jpg",
+      "location": "Piling works (city not verified)",
+      "source_sha256": "804494805fabf316d500812711fc8f7dfdf466b86c2aee77e1e898a15f723ccf",
+      "image_sha256": "bb996f4d0c028bc22e31efc5b547d3314b66b504cf0ccf7b612232c9f6dd5e79",
+      "model_sha256": "b05d39dba9d9a5a19855b9cc7dc4c613e979a64a280929e593522685c19cefff",
+      "metrics": {
+        "detections": 4,
+        "events": 1,
+        "frames_processed": 1
+      },
+      "privacy_blur_enabled": false,
+      "run": "outputs/readme-gallery/runs/20260912T095604.869275Z-2df2b758"
+    }
+  ],
+  "review_notes": {
+    "hk_site_access_01": [
+      "Raw predictions are retained, including a CCTV camera labeled gloves and a passerby head labeled helmet. These are false positives, not validated PPE findings."
+    ],
+    "hk_tsuen_wan_scaffolding_01": [
+      "Person, helmet and vest predictions shown; confidence is not correctness or evidence of safe work at height."
+    ],
+    "piling_rear_view_01": [
+      "The polygon is an illustrative user policy; its event is not a claim about real site rules."
+    ]
+  }
+}

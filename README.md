@@ -11,7 +11,9 @@
 A local construction and infrastructure monitoring demo with bundled PPE models,
 zone policies, temporary tracking, private evidence and durable integrations.
 
-![Rear-view inspection workspace](docs/assets/dashboard-v2.2.png)
+![Real model detections at a Hong Kong building construction site](docs/assets/hk_site_access_01_detections.jpg)
+
+*Hong Kong building works — real person/PPE detections from the bundled model. Photo: [Catgirlmutant / Unsplash](https://unsplash.com/photos/a-man-wearing-a-hard-hat-BRQQtnsG2do).*
 
 [Quick start](#quick-start) · [Operating guide](docs/guide.md) · [Integrations](docs/integrations.md) · [Validation](docs/modernization.md)
 
@@ -82,12 +84,29 @@ Use `--privacy-mode solid` or `pixelate` for alternative redaction, and `--no-bl
 only when unredacted output is intentional. `--profile` selects a heuristic operating preset;
 profile names do not represent measured accuracy guarantees.
 
-<details>
-<summary>Inspection results and evidence review</summary>
+## Detection gallery: building and civil works
 
-![Real rear-view PPE inference, without unnecessary blur](docs/assets/review-v2.2.png)
-![Evidence and append-only review controls](docs/assets/review-details-v2.2.png)
-<img src="docs/assets/mobile-v2.2.png" width="300" alt="Mobile inspection workspace">
+These are model-annotated outputs from real photographs, not raw stock images or mock detection boxes.
+The two Hong Kong locations are identified by the photographer. The piling scene contains Chinese-language
+site signage; its exact city is not verified.
+
+| Tsuen Wan, Hong Kong · façade scaffolding | Piling works · illustrative access zone |
+| --- | --- |
+| <img src="docs/assets/hk_tsuen_wan_scaffolding_01_detections.jpg" width="430" alt="Real person, helmet and vest detections on a Hong Kong scaffold"> | <img src="docs/assets/piling_rear_view_01_detections.jpg" width="430" alt="Real person and PPE detections with an example plant-access zone"> |
+| [Catgirlmutant / Unsplash](https://unsplash.com/photos/a-man-on-a-scaffold-working-on-a-building-PW-jyG50hpc) | [MO ZHOU / Pexels](https://www.pexels.com/photo/man-in-uniform-working-at-construction-site-4311990/) |
+
+The publicly licensed gallery images are shown without privacy redaction, and that setting is recorded
+in their manifests. Uploaded and live-camera media still default to privacy protection. Predictions include false positives (for example, the CCTV camera in the first image is labeled
+`gloves`); these raw outputs are retained for review. The boxes are not verified violations,
+fall-protection certification or an accuracy benchmark.
+
+Reproduce these outputs with `uv run python tools/render_readme_gallery.py`.
+[Run settings and hashes](docs/validation/readme-gallery.json) · [Image credits and licenses](docs/legal/sample-photos.md)
+
+<details>
+<summary>Application workspace and evidence review</summary>
+
+![Completed inspection and review controls](docs/assets/review-details-v2.2.png)
 
 </details>
 
@@ -183,7 +202,7 @@ uv build
 
 [Development and optional integration checks](docs/development.md) · [Model evaluation](docs/model-evaluation/ppe_yolo11n-v1/README.md)
 
-Code is released under [AGPL-3.0](LICENSE). The three rear-view photographs retain the separate
-[Pexels License and photographer credits](docs/legal/sample-photos.md); they are not relicensed
+Code is released under [AGPL-3.0](LICENSE). The photographs retain their separate
+[Pexels/Unsplash licenses and photographer credits](docs/legal/sample-photos.md); they are not relicensed
 as AGPL or used as ground-truth safety labels. Other models and examples retain their recorded
 licenses. This software assists visual review; a human must assess alerts.

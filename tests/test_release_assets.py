@@ -25,7 +25,12 @@ def test_asset_manifest_paths_and_hashes_match_committed_files():
     report = audit_provenance(manifest, REPO_ROOT)
 
     assert report["passed"], report["errors"]
-    assert report["approved_licenses"] == ["AGPL-3.0-only", "CC0-1.0", "LicenseRef-Pexels"]
+    assert report["approved_licenses"] == [
+        "AGPL-3.0-only",
+        "CC0-1.0",
+        "LicenseRef-Pexels",
+        "LicenseRef-Unsplash",
+    ]
 
 
 def test_primary_documented_demo_inputs_exist():

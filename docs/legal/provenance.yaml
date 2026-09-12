@@ -5,6 +5,7 @@ policy:
   - AGPL-3.0-only
   - CC0-1.0
   - LicenseRef-Pexels
+  - LicenseRef-Unsplash
   rule: every audited artifact must have an exact source or derivation, SHA-256, and
     approved license
 sources:
@@ -50,6 +51,22 @@ sources:
     download: https://images.pexels.com/photos/4311990/pexels-photo-4311990.jpeg?cs=srgb&dl=pexels-mo-zhou-2769438-4311990.jpg&fm=jpg
     usage: Individually licensed application demonstration asset; no endorsement or
       claim about actual site safety.
+  unsplash-BRQQtnsG2do:
+    name: Hong Kong construction photograph
+    url: https://unsplash.com/photos/a-man-wearing-a-hard-hat-BRQQtnsG2do
+    download: https://images.unsplash.com/photo-1657862035596-3d75114c71b5?auto=format&fit=crop&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.1.0&q=60&w=3000
+    author: Catgirlmutant
+    location: Hong Kong
+    license: LicenseRef-Unsplash
+    license_url: https://unsplash.com/license
+  unsplash-PW-jyG50hpc:
+    name: Tsuen Wan, Hong Kong construction photograph
+    url: https://unsplash.com/photos/a-man-on-a-scaffold-working-on-a-building-PW-jyG50hpc
+    download: https://images.unsplash.com/photo-1674050629760-b6ffe5e64a0e?auto=format&fit=crop&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.1.0&q=60&w=3000
+    author: Catgirlmutant
+    location: Tsuen Wan, Hong Kong
+    license: LicenseRef-Unsplash
+    license_url: https://unsplash.com/license
 artifacts:
 - path: examples/sample_images/construction_zone_01.jpg
   sha256: 0e7e0ad384be95cda57b7a93ea0ffdcf65f3ca9062e412bf54a5e37adab4f402
@@ -231,3 +248,29 @@ artifacts:
   derived_from: examples/sample_images/utility_rear_view_01.jpg
   generated_by: tools/smoke_web.py; real Chromium capture
   privacy_redaction: not_required_for_hash_reviewed_rear_view_sample
+- path: examples/sample_images/hk_site_access_01.jpg
+  sha256: 7b542349111687a5d52bacbf731893da917fce02a76cf69dc3d09ab74a681206
+  license: LicenseRef-Unsplash
+  source: unsplash-BRQQtnsG2do
+- path: examples/sample_images/hk_tsuen_wan_scaffolding_01.jpg
+  sha256: d8eeb7ba9fa7feee060d4ce9ee9381aee3f96ac5eef95f14186c21462603a68d
+  license: LicenseRef-Unsplash
+  source: unsplash-PW-jyG50hpc
+- path: docs/assets/hk_site_access_01_detections.jpg
+  sha256: 54c624b4d9ce78d3c11776cb1fc68a2a8e88f69c1d70cf5c16b75b36c1eab928
+  license: LicenseRef-Unsplash
+  derived_from: examples/sample_images/hk_site_access_01.jpg
+  generated_by: tools/render_readme_gallery.py; real bundled PPE model
+  privacy_redaction: disabled_for_publicly_licensed_readme_example
+- path: docs/assets/hk_tsuen_wan_scaffolding_01_detections.jpg
+  sha256: 0f426ee0ccb8dd4f6861ff710d46cc8485847b963adbe591a2c5fde0fc667f08
+  license: LicenseRef-Unsplash
+  derived_from: examples/sample_images/hk_tsuen_wan_scaffolding_01.jpg
+  generated_by: tools/render_readme_gallery.py; real bundled PPE model
+  privacy_redaction: disabled_for_publicly_licensed_readme_example
+- path: docs/assets/piling_rear_view_01_detections.jpg
+  sha256: bb996f4d0c028bc22e31efc5b547d3314b66b504cf0ccf7b612232c9f6dd5e79
+  license: LicenseRef-Pexels
+  derived_from: examples/sample_images/piling_rear_view_01.jpg
+  generated_by: tools/render_readme_gallery.py; real bundled PPE model
+  privacy_redaction: disabled_for_publicly_licensed_readme_example
