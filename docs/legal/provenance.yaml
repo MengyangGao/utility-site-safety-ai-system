@@ -274,3 +274,9 @@ artifacts:
   derived_from: examples/sample_images/piling_rear_view_01.jpg
   generated_by: tools/render_readme_gallery.py; real bundled PPE model
   privacy_redaction: disabled_for_publicly_licensed_readme_example
+- path: docs/assets/detection-review.png
+  sha256: 8dd498a15e890cd4e158fe87d5790bd8bc2eebd9c9f2b4fe942e2c8bbc529efc
+  license: LicenseRef-Pexels
+  derived_from: examples/sample_images/utility_rear_view_01.jpg
+  generated_by: tools/smoke_web.py; real Chromium capture
+  privacy_redaction: not_required_for_hash_reviewed_rear_view_sample

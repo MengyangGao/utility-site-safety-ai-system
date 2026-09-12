@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "utility-safety-ai"
-version = "2.2.0"
+version = "2.3.0"
 description = "Computer-vision PPE and restricted-zone monitoring for utility and construction worksites."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"

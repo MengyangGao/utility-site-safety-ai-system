@@ -86,3 +86,20 @@ zone event, report hashes, H.264 playback and mobile layout.
 
 Updates were pushed to `main` with the owner's authorization. [The complete CI matrix](https://github.com/MengyangGao/utility-site-safety-ai-system/actions/runs/34633162803)
 passed at `ca01bec`: all nine OS/Python test jobs and the quality/browser/wheel job. A later documentation-only commit records these results without changing application source. No release, deployment or physical-camera operation was performed.
+
+
+## Prediction review iteration (2.3.0)
+
+Raw predictions now have an independent review workflow even when no policy event exists.
+This addresses observations such as a CCTV fixture classified as gloves: the mistake can be
+recorded without inventing a safety event. Review decisions are appended outside the run;
+identifiers include the original log hash and line number. Reads and saves verify that hash,
+and a changed run cannot inherit decisions from its previous evidence. Exports retain the
+complete history with hashes. Detection and event review decisions remain separate.
+
+Local validation: 198 tests passed on Python 3.11 (81.53% branch-aware coverage); Ruff and
+mypy passed. AppTest saved a false-positive decision in a run with zero events, updated the
+review counters, and verified original evidence bytes. The real Chromium/model workflow
+passed image inference, prediction review display, ZIP evidence hashes, upload privacy,
+zone events, H.264 playback and mobile layout. This iteration does not retrain the model
+or claim improved detection accuracy.

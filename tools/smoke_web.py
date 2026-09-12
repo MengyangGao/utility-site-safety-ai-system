@@ -75,7 +75,17 @@ def main():
                     page.screenshot(path=str(args.output / "dashboard-v2.2.png"), full_page=True)
                     page.get_by_role("button", name="Run included sample", exact=True).click()
                     expect(page.get_by_text("Frames analysed", exact=True)).to_be_visible()
+                    expect(page.get_by_text("Raw predictions", exact=True)).to_be_visible()
                     page.screenshot(path=str(args.output / "review-v2.2.png"), full_page=True)
+                    page.get_by_text("Detection review", exact=True).scroll_into_view_if_needed()
+                    page.get_by_text("Save prediction reviews", exact=True).click()
+                    expect(
+                        page.get_by_role("button", name="Save detection reviews", exact=True)
+                    ).to_be_visible()
+                    page.wait_for_timeout(
+                        350
+                    )  # Let the expander animation finish before documenting it.
+                    page.screenshot(path=str(args.output / "detection-review.png"))
                     with page.expect_download() as download:
                         page.get_by_role(
                             "button", name="Download complete report", exact=True
@@ -90,6 +100,7 @@ def main():
                             "reviewed_rear_view_sample:"
                         )
                         assert "review_history.json" in archive.namelist()
+                        assert json.loads(archive.read("detection_review_history.json")) == []
                         for artifact in manifest["artifacts"]:
                             assert (
                                 hashlib.sha256(archive.read(artifact["path"])).hexdigest()

@@ -68,6 +68,15 @@ class EventStore:
                     reviewer TEXT NOT NULL, created_at REAL NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS reviews_event ON reviews(event_id, id);
+                CREATE TABLE IF NOT EXISTS detection_reviews (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    run_id TEXT NOT NULL, log_sha256 TEXT NOT NULL,
+                    detection_id TEXT NOT NULL, line_number INTEGER NOT NULL,
+                    status TEXT NOT NULL, note TEXT NOT NULL,
+                    reviewer TEXT NOT NULL, created_at REAL NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS detection_reviews_run
+                    ON detection_reviews(run_id, log_sha256, detection_id, id);
                 CREATE TABLE IF NOT EXISTS outbox (
                     event_id TEXT NOT NULL REFERENCES events(event_id), target TEXT NOT NULL,
                     state TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0,

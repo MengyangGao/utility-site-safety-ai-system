@@ -33,6 +33,8 @@ zone policies, temporary tracking, private evidence and durable integrations.
   capture timestamps and processing diagnostics.
 - Delivers events during inference through a durable SQLite outbox. Supports signed webhooks,
   optional MQTT QoS 1, and an authenticated local REST API.
+- Reviews raw predictions even when no policy event was emitted. Paginated detection records
+  show model label, confidence, bounding box and frame, with separate human decisions.
 - Appends operator review history while retaining the original run evidence and manifest.
 
 The project fits inspection workflows around utility corridors, excavation edges, plant exclusion
@@ -108,6 +110,8 @@ Reproduce these outputs with `uv run python tools/render_readme_gallery.py`.
 
 ![Completed inspection and review controls](docs/assets/review-details-v2.2.png)
 
+![Raw detection review independent of safety events](docs/assets/detection-review.png)
+
 </details>
 
 ## Sample scenes
@@ -173,6 +177,18 @@ See [integration contracts](docs/integrations.md) for authentication, retries an
 Each run has its own directory under `outputs/<name>/runs/<run-id>/`. Only completed runs update
 `latest.json`; failures retain diagnostics. The integration database sits at
 `outputs/<name>/events.sqlite3`. Original run hashes are finalized before operator reviews.
+
+**Detection review** is separate from event review. Each record has a stable identifier
+bound to the run ID, original detection-log SHA-256 and record number. The app verifies the
+log before reading and again before saving; changed or replaced evidence fails explicitly.
+Review pages contain up to 25 predictions. Save decisions before changing pages.
+
+Mark a prediction `confirmed`, `false_positive`, or `needs_follow_up`, with a reviewer label
+and optional note. Counts show the latest human decisions separately from raw model counts;
+these are not precision/recall metrics. Decisions do not erase boxes, retract delivered alerts
+or retrain the model. The report ZIP includes `detection_review_history.json` alongside the
+original evidence and event review history. Each decision retains its evidence hash, so
+older decisions can still be distinguished if a run ID was intentionally reused.
 
 The current PPE model has worn-PPE classes and explicit `no_helmet`, `no_goggle`, `no_gloves`
 and `no_boots` labels. It has **no `no_vest` class**. Absence of a positive detection remains

@@ -11,8 +11,10 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from ..events.detection_review import review_history as detection_review_history
 from ..events.event import SafetyEvent
 from ..events.store import EventStore
+from .detection_review import render_detection_review
 from .theme import section
 
 
@@ -44,6 +46,10 @@ def _bundle_run(run_dir: Path) -> bytes:
         store = EventStore(run_dir.parent.parent / "events.sqlite3")
         archive.writestr(
             "review_history.json", json.dumps(store.run_reviews(run_dir.name), indent=2)
+        )
+        archive.writestr(
+            "detection_review_history.json",
+            json.dumps(detection_review_history(store, run_dir.name), indent=2),
         )
     return buffer.getvalue()
 
@@ -261,6 +267,7 @@ def render_run(run_dir: Path, *, quality_title: str, evidence_title: str) -> Non
                 f"Stop reason: {capture.get('stop_reason', 'unknown')}. MP4 timing may be compressed; use the timestamp log for capture timing."
             )
     _quality_panel(run_dir, quality_title)
+    render_detection_review(run_dir)
     _review_workspace(run_dir, events, evidence_title)
     with st.expander("Run settings and file hashes"):
         st.json(manifest)
