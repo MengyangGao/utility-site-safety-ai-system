@@ -7,13 +7,13 @@ updates:
     groups:
       python:
         patterns: ['*']
-    # NumPy 2 / OpenCV 5 need a coordinated migration of the supported
+    # NumPy 2 / OpenCV 4.12+ need a coordinated migration of the supported
     # Python 3.10–3.12 and macOS inference stack, not independent bumps.
     ignore:
       - dependency-name: numpy
         update-types: ['version-update:semver-major']
       - dependency-name: opencv-python
-        update-types: ['version-update:semver-major']
+        versions: ['>=4.12']
   - package-ecosystem: github-actions
     directory: /
     schedule:

@@ -63,4 +63,4 @@ without a frozen checkpoint, representative data and per-class results.
 
 ### Deliberate dependency major-version boundaries
 
-The supported Python 3.10–3.12/macOS stack currently keeps NumPy below 2 and OpenCV below 5. Dependabot's automatic version-update job attempted incompatible major upgrades and failed dependency resolution. Its policy now defers only those major-version proposals; compatible patch/minor updates continue. A NumPy 2/OpenCV 5 migration must be validated together with the supported Python and Ultralytics versions. Existing failed updater runs remain historical evidence.
+The supported Python 3.10–3.12/macOS stack currently keeps NumPy below 2 and OpenCV below 4.12. OpenCV 4.12+ requires NumPy 2 on Python 3.9+, so merely deferring OpenCV 5 is insufficient: Dependabot also attempted incompatible OpenCV 4.14. The manifest and updater policy now express that compatibility boundary. Updates inside the supported range continue; NumPy 2/OpenCV 4.12+ require a coordinated migration of the Python/Ultralytics matrix. Existing failed updater runs remain historical evidence.
