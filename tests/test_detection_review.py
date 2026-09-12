@@ -42,7 +42,9 @@ def decision(row, status="false_positive"):
 
 
 def test_prediction_reviews_are_paginated_append_only_and_independent_of_events(run):
-    original = {p.relative_to(run).as_posix(): p.read_bytes() for p in run.rglob("*") if p.is_file()}
+    original = {
+        p.relative_to(run).as_posix(): p.read_bytes() for p in run.rglob("*") if p.is_file()
+    }
     first, second = detection_page(run), detection_page(run, 1)
     assert first["total"] == 29 and len(first["rows"]) == 25 and len(second["rows"]) == 4
     assert second["rows"][0]["line_number"] == 26
